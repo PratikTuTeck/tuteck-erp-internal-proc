@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { X, Plus, Trash2, Search } from 'lucide-react';
+import { Select, MenuItem, Chip, FormControl, InputLabel, Box } from '@mui/material';
 
 interface CreatePOModalProps {
   isOpen: boolean;
@@ -291,39 +292,42 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Delivery Warehouse
               </label>
-              <select 
-                multiple
-                value={formData.selectedWarehouses}
-                onChange={(e) => {
-                  const values = Array.from(e.target.selectedOptions, option => option.value);
-                  setFormData(prev => ({...prev, selectedWarehouses: values}));
-                }}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 h-32"
-              >
-                {warehouses.map(warehouse => (
-                  <option key={warehouse.id} value={warehouse.id}>{warehouse.name}</option>
-                ))}
-              </select>
-              
-              {/* Selected Warehouses Capsules */}
-              {formData.selectedWarehouses.length > 0 && (
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {formData.selectedWarehouses.map(warehouseId => {
-                    const warehouse = warehouses.find(w => w.id === warehouseId);
-                    return (
-                      <span key={warehouseId} className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-green-100 text-green-800">
-                        {warehouse?.name}
-                        <button
-                          onClick={() => handleWarehouseChange(warehouseId)}
-                          className="ml-2 text-green-600 hover:text-green-800"
-                        >
-                          ×
-                        </button>
-                      </span>
-                    );
-                  })}
-                </div>
-              )}
+              <FormControl fullWidth>
+                <Select
+                  multiple
+                  value={formData.selectedWarehouses}
+                  onChange={(e) => {
+                    const values = typeof e.target.value === 'string' ? e.target.value.split(',') : e.target.value;
+                    setFormData(prev => ({...prev, selectedWarehouses: values}));
+                  }}
+                  renderValue={(selected) => (
+                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                      {selected.map((value) => {
+                        const warehouse = warehouses.find(w => w.id === value);
+                        return (
+                          <Chip
+                            key={value}
+                            label={warehouse?.name}
+                            onDelete={() => handleWarehouseChange(value)}
+                            size="small"
+                          />
+                        );
+                      })}
+                    </Box>
+                  )}
+                  sx={{
+                    '& .MuiOutlinedInput-root': {
+                      borderRadius: '8px',
+                    }
+                  }}
+                >
+                  {warehouses.map(warehouse => (
+                    <MenuItem key={warehouse.id} value={warehouse.id}>
+                      {warehouse.name}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
               </div>
             </div>
 

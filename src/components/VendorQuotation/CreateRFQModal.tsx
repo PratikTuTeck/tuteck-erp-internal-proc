@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { X, Search } from 'lucide-react';
+import { Select, MenuItem, Chip, FormControl, InputLabel, Box } from '@mui/material';
 import SelectVendorsModal from './SelectVendorsModal';
 
 interface CreateRFQModalProps {
@@ -250,84 +251,90 @@ const CreateRFQModal: React.FC<CreateRFQModalProps> = ({ isOpen, onClose }) => {
                     {selectedWarehouses.map(warehouseId => {
                       const warehouse = warehouses.find(w => w.id === warehouseId);
                       return (
-                        <span key={warehouseId} className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-green-100 text-green-800">
-                          {warehouse?.name}
-                          <button
-                            onClick={() => handleRemoveWarehouse(warehouseId)}
-                            className="ml-2 text-green-600 hover:text-green-800"
-                          >
-                            ×
-                          </button>
-                        </span>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  RFQ Date
-                </label>
-                <input
-                  type="date"
-                  value={formData.rfqDate}
-                  onChange={(e) => setFormData({...formData, rfqDate: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  End Date <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="date"
-                  value={formData.endDate}
-                  onChange={(e) => setFormData({...formData, endDate: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-            </div>
+              <FormControl fullWidth>
+                <Select
+                  multiple
+                  value={selectedIndents}
+                  onChange={(e) => {
+                    const values = typeof e.target.value === 'string' ? e.target.value.split(',') : e.target.value;
+                    setSelectedIndents(values);
+                    if (values.length > 0) {
+                      const aggregated = aggregateItems(values);
+                      setAggregatedItems(aggregated);
+                    } else {
+                      setAggregatedItems([]);
+                    }
+                  }}
+                  renderValue={(selected) => (
+                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                      {selected.map((value) => {
+                        const indent = indents.find(i => i.id === value);
+                        return (
+                          <Chip
+                            key={value}
+                            label={indent?.name}
+                            onDelete={() => handleRemoveIndent(value)}
+                            size="small"
+                          />
+                        );
+                      })}
+                    </Box>
+                  )}
+                  sx={{
+                    '& .MuiOutlinedInput-root': {
+                      borderRadius: '8px',
+                    }
+                  }}
+                >
+                  {indents.map(indent => (
+                    <MenuItem key={indent.id} value={indent.id}>
+                      {indent.name}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
 
             {/* Description */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Description
               </label>
-              <textarea
-                rows={3}
-                value={formData.description}
-                onChange={(e) => setFormData({...formData, description: e.target.value})}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="Enter RFQ description"
-              />
-            </div>
-
-            {/* Aggregated Item Details Table */}
-            {selectedIndents.length > 0 && (
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Aggregated Item Details from Selected Indents</h3>
-                <div className="overflow-x-auto">
-                  <table className="w-full border border-gray-200 rounded-lg">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th className="text-left py-3 px-4 font-medium text-gray-900">Item</th>
-                        <th className="text-left py-3 px-4 font-medium text-gray-900">UOM</th>
-                        <th className="text-left py-3 px-4 font-medium text-gray-900">Total Procure Qty</th>
-                        <th className="text-left py-3 px-4 font-medium text-gray-900">Source Indents</th>
-                        <th className="text-left py-3 px-4 font-medium text-gray-900">Vendor Option</th>
-                        <th className="text-center py-3 px-4 font-medium text-gray-900">Action</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {aggregatedItems.map((item, index) => (
-                        <tr key={index} className="border-t border-gray-200">
-                          <td className="py-3 px-4 font-medium text-gray-900">
-                            {item.itemCode} - {item.itemName}
-                          </td>
-                          <td className="py-3 px-4 text-gray-600">{item.uom}</td>
-                          <td className="py-3 px-4 text-gray-600">{item.totalProcureQty}</td>
+              <FormControl fullWidth>
+                <Select
+                  multiple
+                  value={selectedWarehouses}
+                  onChange={(e) => {
+                    const values = typeof e.target.value === 'string' ? e.target.value.split(',') : e.target.value;
+                    setSelectedWarehouses(values);
+                  }}
+                  renderValue={(selected) => (
+                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                      {selected.map((value) => {
+                        const warehouse = warehouses.find(w => w.id === value);
+                        return (
+                          <Chip
+                            key={value}
+                            label={warehouse?.name}
+                            onDelete={() => handleRemoveWarehouse(value)}
+                            size="small"
+                          />
+                        );
+                      })}
+                    </Box>
+                  )}
+                  sx={{
+                    '& .MuiOutlinedInput-root': {
+                      borderRadius: '8px',
+                    }
+                  }}
+                >
+                  {warehouses.map(warehouse => (
+                    <MenuItem key={warehouse.id} value={warehouse.id}>
+                      {warehouse.name}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
                           <td className="py-3 px-4 text-gray-600">
                             <div className="flex flex-wrap gap-1">
                               {item.sourceIndents.map(indentId => (
