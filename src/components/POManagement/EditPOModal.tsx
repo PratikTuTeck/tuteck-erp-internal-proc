@@ -305,8 +305,7 @@ const EditPOModal: React.FC<EditPOModalProps> = ({ isOpen, onClose, po }) => {
                 </div>
               )}
               </div>
-            </div>
-
+            
             <div className="md:col-span-3">
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Vendor Address
@@ -339,6 +338,7 @@ const EditPOModal: React.FC<EditPOModalProps> = ({ isOpen, onClose, po }) => {
                 </div>
               </div>
             )}
+          </div>
           </div>
 
           {/* Vendor Details */}
