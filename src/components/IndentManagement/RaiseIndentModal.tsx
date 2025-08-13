@@ -245,10 +245,9 @@ const RaiseIndentModal: React.FC<RaiseIndentModalProps> = ({ isOpen, onClose }) 
                       <tr>
                         <th className="text-left py-3 px-4 font-medium text-gray-900">Item (Code + Name)</th>
                         <th className="text-left py-3 px-4 font-medium text-gray-900">UOM</th>
-                        <th className="text-left py-3 px-4 font-medium text-gray-900">Rate</th>
                         <th className="text-left py-3 px-4 font-medium text-gray-900">Available Qty</th>
                         <th className="text-left py-3 px-4 font-medium text-gray-900">Required Qty</th>
-                        <th className="text-left py-3 px-4 font-medium text-gray-900">Allocated Qty</th>
+                        <th className="text-left py-3 px-4 font-medium text-gray-900">Already Allocated</th>
                         <th className="text-left py-3 px-4 font-medium text-gray-900">Procure Qty</th>
                         <th className="text-center py-3 px-4 font-medium text-gray-900">Action</th>
                       </tr>
@@ -260,14 +259,6 @@ const RaiseIndentModal: React.FC<RaiseIndentModalProps> = ({ isOpen, onClose }) 
                             {item.itemCode} - {item.itemName}
                           </td>
                           <td className="py-3 px-4 text-gray-600">{item.uom}</td>
-                          <td className="py-3 px-4">
-                            <input
-                              type="number"
-                              value={item.rate}
-                              onChange={(e) => handleItemChange(index, 'rate', Number(e.target.value))}
-                              className="w-20 px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-                            />
-                          </td>
                           <td className="py-3 px-4 text-gray-600">{item.availableQty}</td>
                           <td className="py-3 px-4 text-gray-600">{item.requiredQty}</td>
                           <td className="py-3 px-4 text-gray-600">{item.allocatedQty}</td>
