@@ -586,7 +586,6 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
           </button>
         </div>
       </div>
-    </div>
   );
 };
 
