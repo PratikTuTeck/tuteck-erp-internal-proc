@@ -1,9 +1,8 @@
 import React, { useState } from 'react';
-import { Plus, Search, Eye, Edit, CheckCircle, FileText, Download } from 'lucide-react';
+import { Plus, Search, Eye, Edit, CheckCircle, FileText } from 'lucide-react';
 import RaiseIndentModal from './RaiseIndentModal';
 import ViewIndentModal from './ViewIndentModal';
 import ApproveIndentModal from './ApproveIndentModal';
-import AggregateIndentModal from './AggregateIndentModal';
 
 interface Indent {
   id: string;
@@ -15,7 +14,6 @@ interface Indent {
   approvedBy: string;
   approvedOn: string;
   status: 'pending' | 'approved' | 'rejected';
-  aggregateStatus: 'not_aggregated' | 'aggregated';
   projectName: string;
   noOfItems: number;
   comment: string;
@@ -32,9 +30,7 @@ const IndentManagement: React.FC = () => {
   const [showRaiseModal, setShowRaiseModal] = useState(false);
   const [showViewModal, setShowViewModal] = useState(false);
   const [showApproveModal, setShowApproveModal] = useState(false);
-  const [showAggregateModal, setShowAggregateModal] = useState(false);
   const [selectedIndent, setSelectedIndent] = useState<Indent | null>(null);
-  const [selectedIndents, setSelectedIndents] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
 
   const indents: Indent[] = [
@@ -48,7 +44,6 @@ const IndentManagement: React.FC = () => {
       approvedBy: 'Jane Doe',
       approvedOn: '2024-07-12',
       status: 'approved',
-      aggregateStatus: 'not_aggregated',
       projectName: 'Project Alpha',
       noOfItems: 3,
       comment: 'Urgent requirement for construction',
@@ -68,7 +63,6 @@ const IndentManagement: React.FC = () => {
       approvedBy: 'Bob Wilson',
       approvedOn: '2024-07-13',
       status: 'approved',
-      aggregateStatus: 'not_aggregated',
       projectName: 'Project Beta',
       noOfItems: 2,
       comment: 'Regular maintenance supplies',
@@ -87,7 +81,6 @@ const IndentManagement: React.FC = () => {
       approvedBy: '',
       approvedOn: '',
       status: 'pending',
-      aggregateStatus: 'not_aggregated',
       projectName: 'Project Gamma',
       noOfItems: 1,
       comment: 'New project requirement',
@@ -106,29 +99,6 @@ const IndentManagement: React.FC = () => {
     }
   };
 
-  const getAggregateStatusColor = (status: string) => {
-    switch (status) {
-      case 'aggregated': return 'bg-blue-100 text-blue-800';
-      case 'not_aggregated': return 'bg-gray-100 text-gray-800';
-      default: return 'bg-gray-100 text-gray-800';
-    }
-  };
-
-  const handleCheckboxChange = (indentId: string) => {
-    setSelectedIndents(prev => 
-      prev.includes(indentId) 
-        ? prev.filter(id => id !== indentId)
-        : [...prev, indentId]
-    );
-  };
-
-  const handleSelectAll = () => {
-    const approvedIndents = indents.filter(indent => indent.status === 'approved').map(indent => indent.id);
-    setSelectedIndents(prev => 
-      prev.length === approvedIndents.length ? [] : approvedIndents
-    );
-  };
-
   const handleViewIndent = (indent: Indent) => {
     setSelectedIndent(indent);
     setShowViewModal(true);
@@ -139,11 +109,6 @@ const IndentManagement: React.FC = () => {
     setShowApproveModal(true);
   };
 
-  const handleAggregate = () => {
-    const selectedIndentData = indents.filter(indent => selectedIndents.includes(indent.id));
-    setShowAggregateModal(true);
-  };
-
   const filteredIndents = indents.filter(indent =>
     indent.indentNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
     indent.warehouseName.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -151,16 +116,12 @@ const IndentManagement: React.FC = () => {
     indent.createdBy.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const approvedSelectedCount = selectedIndents.filter(id => 
-    indents.find(indent => indent.id === id)?.status === 'approved'
-  ).length;
-
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Indent Dashboard</h1>
-          <p className="text-gray-600 mt-1">Manage indents, approvals, and aggregations</p>
+          <p className="text-gray-600 mt-1">Manage indents and approvals</p>
         </div>
       </div>
 
@@ -192,14 +153,6 @@ const IndentManagement: React.FC = () => {
           <table className="w-full">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
-                <th className="text-left py-3 px-4">
-                  <input
-                    type="checkbox"
-                    checked={selectedIndents.length === indents.filter(i => i.status === 'approved').length && indents.filter(i => i.status === 'approved').length > 0}
-                    onChange={handleSelectAll}
-                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                  />
-                </th>
                 <th className="text-left py-3 px-4 font-medium text-gray-900">Indent Number</th>
                 <th className="text-left py-3 px-4 font-medium text-gray-900">Created By</th>
                 <th className="text-left py-3 px-4 font-medium text-gray-900">Requested On</th>
@@ -208,22 +161,12 @@ const IndentManagement: React.FC = () => {
                 <th className="text-left py-3 px-4 font-medium text-gray-900">Approved By</th>
                 <th className="text-left py-3 px-4 font-medium text-gray-900">Approved On</th>
                 <th className="text-left py-3 px-4 font-medium text-gray-900">Status</th>
-                <th className="text-left py-3 px-4 font-medium text-gray-900">Aggregate Status</th>
                 <th className="text-center py-3 px-4 font-medium text-gray-900">Actions</th>
               </tr>
             </thead>
             <tbody>
               {filteredIndents.map((indent) => (
                 <tr key={indent.id} className="border-b border-gray-200 hover:bg-gray-50">
-                  <td className="py-4 px-4">
-                    <input
-                      type="checkbox"
-                      checked={selectedIndents.includes(indent.id)}
-                      onChange={() => handleCheckboxChange(indent.id)}
-                      disabled={indent.status !== 'approved'}
-                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 disabled:opacity-50"
-                    />
-                  </td>
                   <td className="py-4 px-4 font-medium text-gray-900">{indent.indentNumber}</td>
                   <td className="py-4 px-4 text-gray-600">{indent.createdBy}</td>
                   <td className="py-4 px-4 text-gray-600">{indent.requestedOn}</td>
@@ -234,11 +177,6 @@ const IndentManagement: React.FC = () => {
                   <td className="py-4 px-4">
                     <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(indent.status)}`}>
                       {indent.status.charAt(0).toUpperCase() + indent.status.slice(1)}
-                    </span>
-                  </td>
-                  <td className="py-4 px-4">
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${getAggregateStatusColor(indent.aggregateStatus)}`}>
-                      {indent.aggregateStatus === 'not_aggregated' ? 'Not Aggregated' : 'Aggregated'}
                     </span>
                   </td>
                   <td className="py-4 px-4">
@@ -278,24 +216,6 @@ const IndentManagement: React.FC = () => {
             </tbody>
           </table>
         </div>
-
-        {/* Below Table Actions */}
-        <div className="mt-6 pt-4 border-t border-gray-200">
-          <button 
-            onClick={handleAggregate}
-            disabled={approvedSelectedCount < 2}
-            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-              approvedSelectedCount >= 2
-                ? 'bg-green-600 text-white hover:bg-green-700'
-                : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-            }`}
-          >
-            Aggregate ({approvedSelectedCount} selected)
-          </button>
-          <p className="text-sm text-gray-500 mt-2">
-            Select 2 or more approved indents to enable aggregation
-          </p>
-        </div>
       </div>
 
       {/* Modals */}
@@ -325,14 +245,6 @@ const IndentManagement: React.FC = () => {
             setSelectedIndent(null);
           }}
           indent={selectedIndent}
-        />
-      )}
-
-      {showAggregateModal && (
-        <AggregateIndentModal 
-          isOpen={showAggregateModal} 
-          onClose={() => setShowAggregateModal(false)}
-          selectedIndents={indents.filter(indent => selectedIndents.includes(indent.id))}
         />
       )}
     </div>

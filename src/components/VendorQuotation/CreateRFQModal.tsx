@@ -18,46 +18,57 @@ interface ItemDetail {
 const CreateRFQModal: React.FC<CreateRFQModalProps> = ({ isOpen, onClose }) => {
   const [showSelectVendors, setShowSelectVendors] = useState(false);
   const [selectedItemIndex, setSelectedItemIndex] = useState<number | null>(null);
+  const [selectedIndents, setSelectedIndents] = useState<string[]>([]);
+  const [selectedWarehouses, setSelectedWarehouses] = useState<string[]>([]);
   const [formData, setFormData] = useState({
-    selectedIndent: '',
-    deliveryLocation: '',
     rfqDate: new Date().toISOString().split('T')[0],
     endDate: '',
     description: ''
   });
 
-  const [itemDetails, setItemDetails] = useState<ItemDetail[]>([
-    {
-      itemCode: 'ITM-001',
-      itemName: 'Steel Rod',
-      uom: 'Kg',
-      procureQty: 100,
-      selectedVendors: []
-    },
-    {
-      itemCode: 'ITM-002',
-      itemName: 'Steel Plate',
-      uom: 'Kg',
-      procureQty: 50,
-      selectedVendors: []
-    }
-  ]);
+  const [itemDetails, setItemDetails] = useState<ItemDetail[]>([]);
 
   if (!isOpen) return null;
 
   const indents = [
-    { id: 'IND-001', name: 'IND-001 - Office Equipment', location: 'Warehouse A' },
-    { id: 'IND-002', name: 'IND-002 - IT Infrastructure', location: 'Warehouse B' },
-    { id: 'IND-003', name: 'IND-003 - Safety Equipment', location: 'Warehouse C' }
+    { id: 'IND-001', name: 'IND-001 - Office Equipment' },
+    { id: 'IND-002', name: 'IND-002 - IT Infrastructure' },
+    { id: 'IND-003', name: 'IND-003 - Safety Equipment' }
+  ];
+
+  const warehouses = [
+    { id: 'WH-001', name: 'Warehouse A' },
+    { id: 'WH-002', name: 'Warehouse B' },
+    { id: 'WH-003', name: 'Warehouse C' }
   ];
 
   const handleIndentChange = (indentId: string) => {
-    const selectedIndentData = indents.find(indent => indent.id === indentId);
-    setFormData({
-      ...formData,
-      selectedIndent: indentId,
-      deliveryLocation: selectedIndentData?.location || ''
-    });
+    setSelectedIndents(prev => 
+      prev.includes(indentId) 
+        ? prev.filter(id => id !== indentId)
+        : [...prev, indentId]
+    );
+
+    // Aggregate common items when indents are selected
+    if (!selectedIndents.includes(indentId)) {
+      // Mock aggregation logic - in real app, this would aggregate items from selected indents
+      const newItems = [
+        { itemCode: 'ITM-001', itemName: 'Steel Rod', uom: 'Kg', procureQty: 100, selectedVendors: [] },
+        { itemCode: 'ITM-002', itemName: 'Steel Plate', uom: 'Kg', procureQty: 50, selectedVendors: [] }
+      ];
+      setItemDetails(prev => [...prev, ...newItems]);
+    } else {
+      // Remove items when indent is deselected
+      setItemDetails([]);
+    }
+  };
+
+  const handleWarehouseChange = (warehouseId: string) => {
+    setSelectedWarehouses(prev => 
+      prev.includes(warehouseId) 
+        ? prev.filter(id => id !== warehouseId)
+        : [...prev, warehouseId]
+    );
   };
 
   const handleSelectVendors = (itemIndex: number) => {
@@ -76,8 +87,8 @@ const CreateRFQModal: React.FC<CreateRFQModalProps> = ({ isOpen, onClose }) => {
   };
 
   const handleSaveRFQ = () => {
-    if (!formData.selectedIndent || !formData.endDate) {
-      alert('Please fill all mandatory fields');
+    if (selectedIndents.length === 0 || !formData.endDate) {
+      alert('Please select at least one indent and fill all mandatory fields');
       return;
     }
 
@@ -87,7 +98,7 @@ const CreateRFQModal: React.FC<CreateRFQModalProps> = ({ isOpen, onClose }) => {
       return;
     }
 
-    console.log('Saving RFQ:', { formData, itemDetails });
+    console.log('Saving RFQ:', { selectedIndents, selectedWarehouses, formData, itemDetails });
     onClose();
   };
 
@@ -110,30 +121,40 @@ const CreateRFQModal: React.FC<CreateRFQModalProps> = ({ isOpen, onClose }) => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Select Indent <span className="text-red-500">*</span>
+                  Select Indents <span className="text-red-500">*</span>
                 </label>
-                <select 
-                  value={formData.selectedIndent}
-                  onChange={(e) => handleIndentChange(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="">Select Indent</option>
+                <div className="space-y-2 max-h-32 overflow-y-auto border border-gray-300 rounded-lg p-3">
                   {indents.map(indent => (
-                    <option key={indent.id} value={indent.id}>{indent.name}</option>
+                    <label key={indent.id} className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        checked={selectedIndents.includes(indent.id)}
+                        onChange={() => handleIndentChange(indent.id)}
+                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      />
+                      <span className="text-sm text-gray-700">{indent.name}</span>
+                    </label>
                   ))}
-                </select>
+                </div>
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Delivery Location
+                  Select Warehouses
                 </label>
-                <input
-                  type="text"
-                  value={formData.deliveryLocation}
-                  disabled
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-600"
-                />
+                <div className="space-y-2 max-h-32 overflow-y-auto border border-gray-300 rounded-lg p-3">
+                  {warehouses.map(warehouse => (
+                    <label key={warehouse.id} className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        checked={selectedWarehouses.includes(warehouse.id)}
+                        onChange={() => handleWarehouseChange(warehouse.id)}
+                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      />
+                      <span className="text-sm text-gray-700">{warehouse.name}</span>
+                    </label>
+                  ))}
+                </div>
               </div>
 
               <div>
@@ -175,10 +196,10 @@ const CreateRFQModal: React.FC<CreateRFQModalProps> = ({ isOpen, onClose }) => {
               />
             </div>
 
-            {/* Item Details Table */}
-            {formData.selectedIndent && (
+            {/* Aggregated Item Details Table */}
+            {selectedIndents.length > 0 && (
               <div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Item Details from Indent</h3>
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">Aggregated Item Details from Selected Indents</h3>
                 <div className="overflow-x-auto">
                   <table className="w-full border border-gray-200 rounded-lg">
                     <thead className="bg-gray-50">
@@ -230,9 +251,9 @@ const CreateRFQModal: React.FC<CreateRFQModalProps> = ({ isOpen, onClose }) => {
             </button>
             <button 
               onClick={handleSaveRFQ}
-              disabled={!formData.selectedIndent || !formData.endDate}
+              disabled={selectedIndents.length === 0 || !formData.endDate}
               className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                formData.selectedIndent && formData.endDate
+                selectedIndents.length > 0 && formData.endDate
                   ? 'bg-blue-600 text-white hover:bg-blue-700'
                   : 'bg-gray-300 text-gray-500 cursor-not-allowed'
               }`}

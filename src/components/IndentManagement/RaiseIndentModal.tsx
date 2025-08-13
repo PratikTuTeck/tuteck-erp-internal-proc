@@ -24,7 +24,6 @@ const RaiseIndentModal: React.FC<RaiseIndentModalProps> = ({ isOpen, onClose }) 
   const [selectedItems, setSelectedItems] = useState<SelectedItem[]>([]);
   const [formData, setFormData] = useState({
     indentId: 'IND-' + String(Date.now()).slice(-6),
-    warehouse: '',
     requestDate: new Date().toISOString().split('T')[0],
     expectedDate: '',
     comment: ''
@@ -32,22 +31,14 @@ const RaiseIndentModal: React.FC<RaiseIndentModalProps> = ({ isOpen, onClose }) 
 
   if (!isOpen) return null;
 
-  const warehouses = [
-    { id: 'WH-001', name: 'Warehouse A' },
-    { id: 'WH-002', name: 'Warehouse B' },
-    { id: 'WH-003', name: 'Warehouse C' }
-  ];
-
   const boms = [
-    { id: 'BOM-001', name: 'Construction BOM - Phase 1', project: 'Project Alpha' },
-    { id: 'BOM-002', name: 'Maintenance BOM - Q1', project: 'Project Beta' },
-    { id: 'BOM-003', name: 'Infrastructure BOM', project: 'Project Gamma' }
+    { id: 'BOM-001', name: 'Construction BOM - Phase 1', project: 'Project Alpha', lead: 'Lead-001' },
+    { id: 'BOM-002', name: 'Maintenance BOM - Q1', project: 'Project Beta', lead: 'Lead-002' },
+    { id: 'BOM-003', name: 'Infrastructure BOM', project: null, lead: 'Lead-003' }
   ];
 
   const handleBOMChange = (bomId: string) => {
     setSelectedBOM(bomId);
-    const selectedBOMData = boms.find(bom => bom.id === bomId);
-    // In real implementation, this would fetch associated projects
   };
 
   const handleAddItems = () => {
@@ -73,7 +64,7 @@ const RaiseIndentModal: React.FC<RaiseIndentModalProps> = ({ isOpen, onClose }) 
 
   const handleSaveIndent = () => {
     // Validate form
-    if (!formData.warehouse || !formData.expectedDate || selectedItems.length === 0) {
+    if (!formData.expectedDate || selectedItems.length === 0) {
       alert('Please fill all mandatory fields and add at least one item');
       return;
     }
@@ -112,22 +103,6 @@ const RaiseIndentModal: React.FC<RaiseIndentModalProps> = ({ isOpen, onClose }) 
                   disabled
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-500"
                 />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Select Delivery Warehouse <span className="text-red-500">*</span>
-                </label>
-                <select 
-                  value={formData.warehouse}
-                  onChange={(e) => setFormData({...formData, warehouse: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="">Select Warehouse</option>
-                  {warehouses.map(warehouse => (
-                    <option key={warehouse.id} value={warehouse.id}>{warehouse.name}</option>
-                  ))}
-                </select>
               </div>
 
               <div>
@@ -199,18 +174,34 @@ const RaiseIndentModal: React.FC<RaiseIndentModalProps> = ({ isOpen, onClose }) 
               </div>
             </div>
 
-            {/* Associated Projects */}
+            {/* Associated Projects/Leads */}
             {selectedBOMData && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Show Associated Projects
+                  Associated Projects/Leads
                 </label>
-                <input
-                  type="text"
-                  value={selectedBOMData.project}
-                  readOnly
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-600"
-                />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">Lead</label>
+                    <input
+                      type="text"
+                      value={selectedBOMData.lead}
+                      readOnly
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-600"
+                    />
+                  </div>
+                  {selectedBOMData.project && (
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">Project</label>
+                      <input
+                        type="text"
+                        value={selectedBOMData.project}
+                        readOnly
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-600"
+                      />
+                    </div>
+                  )}
+                </div>
               </div>
             )}
 
@@ -252,7 +243,6 @@ const RaiseIndentModal: React.FC<RaiseIndentModalProps> = ({ isOpen, onClose }) 
                   <table className="w-full border border-gray-200 rounded-lg">
                     <thead className="bg-gray-50">
                       <tr>
-                        <th className="text-left py-3 px-4 font-medium text-gray-900">Select</th>
                         <th className="text-left py-3 px-4 font-medium text-gray-900">Item (Code + Name)</th>
                         <th className="text-left py-3 px-4 font-medium text-gray-900">UOM</th>
                         <th className="text-left py-3 px-4 font-medium text-gray-900">Rate</th>
@@ -266,13 +256,6 @@ const RaiseIndentModal: React.FC<RaiseIndentModalProps> = ({ isOpen, onClose }) 
                     <tbody>
                       {selectedItems.map((item, index) => (
                         <tr key={index} className="border-t border-gray-200">
-                          <td className="py-3 px-4">
-                            <input
-                              type="checkbox"
-                              defaultChecked
-                              className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                            />
-                          </td>
                           <td className="py-3 px-4 font-medium text-gray-900">
                             {item.itemCode} - {item.itemName}
                           </td>

@@ -22,7 +22,6 @@ interface POItem {
   rate: number;
   quantity: number;
   totalPrice: number;
-  selected: boolean;
 }
 
 const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
@@ -33,7 +32,7 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
     selectedRFQ: '',
     selectedIndent: '',
     selectedVendor: '',
-    receivedLocation: '',
+    selectedWarehouses: [] as string[],
     vendorAddress: '',
     bankName: '',
     gstNo: '',
@@ -62,8 +61,7 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
       uom: 'Kg',
       rate: 350,
       quantity: 100,
-      totalPrice: 35000,
-      selected: false
+      totalPrice: 35000
     },
     {
       id: '2',
@@ -73,19 +71,7 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
       uom: 'Kg',
       rate: 250,
       quantity: 80,
-      totalPrice: 20000,
-      selected: false
-    },
-    {
-      id: '3',
-      hsnCode: '8471',
-      itemCode: 'ITM-003',
-      itemName: 'IT Equipment',
-      uom: 'Piece',
-      rate: 85000,
-      quantity: 10,
-      totalPrice: 850000,
-      selected: false
+      totalPrice: 20000
     }
   ]);
 
@@ -106,6 +92,12 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
     { id: 'V002', name: 'Innovate India Limited', address: '456 Innovation Hub, Mumbai - 400001' }
   ];
 
+  const warehouses = [
+    { id: 'WH-001', name: 'Warehouse A' },
+    { id: 'WH-002', name: 'Warehouse B' },
+    { id: 'WH-003', name: 'Warehouse C' }
+  ];
+
   const handleVendorChange = (vendorId: string) => {
     const vendor = vendors.find(v => v.id === vendorId);
     setFormData({
@@ -118,6 +110,15 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
       accountNo: '1234567890',
       ifscCode: 'HDFC0001234'
     });
+  };
+
+  const handleWarehouseChange = (warehouseId: string) => {
+    setFormData(prev => ({
+      ...prev,
+      selectedWarehouses: prev.selectedWarehouses.includes(warehouseId)
+        ? prev.selectedWarehouses.filter(id => id !== warehouseId)
+        : [...prev.selectedWarehouses, warehouseId]
+    }));
   };
 
   const handleAddPaymentTerm = () => {
@@ -140,12 +141,6 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
     ));
   };
 
-  const handleItemSelect = (itemId: string) => {
-    setItems(items.map(item =>
-      item.id === itemId ? { ...item, selected: !item.selected } : item
-    ));
-  };
-
   const handleItemChange = (itemId: string, field: 'rate' | 'quantity', value: number) => {
     setItems(items.map(item => {
       if (item.id === itemId) {
@@ -162,12 +157,11 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
     item.itemName.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const selectedItems = items.filter(item => item.selected);
-  const totalAmount = selectedItems.reduce((sum, item) => sum + item.totalPrice, 0);
+  const totalAmount = items.reduce((sum, item) => sum + item.totalPrice, 0);
 
   const handleSave = () => {
-    if (!formData.selectedVendor || selectedItems.length === 0) {
-      alert('Please select vendor and at least one item');
+    if (!formData.selectedVendor || items.length === 0) {
+      alert('Please select vendor and ensure items are available');
       return;
     }
 
@@ -175,12 +169,17 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
       sourceType,
       formData,
       paymentTerms,
-      selectedItems,
+      items,
       totalAmount
     });
 
     onClose();
   };
+
+  // Filter vendors based on RFQ selection (won vendors only)
+  const availableVendors = sourceType === 'quotation' && formData.selectedRFQ 
+    ? vendors.filter(v => v.id === 'V001' || v.id === 'V002') // Mock: only won vendors
+    : vendors;
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -278,29 +277,36 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
               <select 
                 value={formData.selectedVendor}
                 onChange={(e) => handleVendorChange(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                disabled={sourceType === 'quotation' && !formData.selectedRFQ}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
               >
                 <option value="">Select Vendor</option>
-                {vendors.map(vendor => (
+                {availableVendors.map(vendor => (
                   <option key={vendor.id} value={vendor.id}>{vendor.name}</option>
                 ))}
               </select>
             </div>
 
-            <div>
+            <div className="md:col-span-3">
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Received Location
+                Delivery Warehouses
               </label>
-              <input
-                type="text"
-                value={formData.receivedLocation}
-                onChange={(e) => setFormData({...formData, receivedLocation: e.target.value})}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="Enter delivery location"
-              />
+              <div className="grid grid-cols-3 gap-4">
+                {warehouses.map(warehouse => (
+                  <label key={warehouse.id} className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      checked={formData.selectedWarehouses.includes(warehouse.id)}
+                      onChange={() => handleWarehouseChange(warehouse.id)}
+                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    />
+                    <span className="text-sm text-gray-700">{warehouse.name}</span>
+                  </label>
+                ))}
+              </div>
             </div>
 
-            <div className="md:col-span-2">
+            <div className="md:col-span-3">
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Vendor Address
               </label>
@@ -474,16 +480,6 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
               <table className="w-full border border-gray-200 rounded-lg">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th className="text-left py-3 px-4 font-medium text-gray-900">
-                      <input
-                        type="checkbox"
-                        onChange={(e) => {
-                          const checked = e.target.checked;
-                          setItems(items.map(item => ({ ...item, selected: checked })));
-                        }}
-                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                      />
-                    </th>
                     <th className="text-left py-3 px-4 font-medium text-gray-900">HSN Code</th>
                     <th className="text-left py-3 px-4 font-medium text-gray-900">Item Code</th>
                     <th className="text-left py-3 px-4 font-medium text-gray-900">Item Name</th>
@@ -496,14 +492,6 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
                 <tbody>
                   {filteredItems.map((item) => (
                     <tr key={item.id} className="border-t border-gray-200">
-                      <td className="py-3 px-4">
-                        <input
-                          type="checkbox"
-                          checked={item.selected}
-                          onChange={() => handleItemSelect(item.id)}
-                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                        />
-                      </td>
                       <td className="py-3 px-4 text-gray-600">{item.hsnCode}</td>
                       <td className="py-3 px-4 font-medium text-gray-900">{item.itemCode}</td>
                       <td className="py-3 px-4 text-gray-600">{item.itemName}</td>

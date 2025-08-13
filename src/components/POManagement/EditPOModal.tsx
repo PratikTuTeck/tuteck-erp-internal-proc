@@ -68,7 +68,7 @@ const EditPOModal: React.FC<EditPOModalProps> = ({ isOpen, onClose, po }) => {
     selectedRFQ: po.type === 'Quotation' ? 'RFQ-001' : '',
     selectedIndent: po.type === 'Indent' ? 'IND-001' : '',
     selectedVendor: 'V001',
-    receivedLocation: po.warehouseName,
+    selectedWarehouses: ['WH-001'] as string[],
     vendorAddress: po.vendorAddress,
     bankName: po.vendorDetails.bankName,
     gstNo: po.gstNo,
@@ -110,6 +110,12 @@ const EditPOModal: React.FC<EditPOModalProps> = ({ isOpen, onClose, po }) => {
     { id: 'V002', name: 'Innovate India Limited', address: '456 Innovation Hub, Mumbai - 400001' }
   ];
 
+  const warehouses = [
+    { id: 'WH-001', name: 'Warehouse A' },
+    { id: 'WH-002', name: 'Warehouse B' },
+    { id: 'WH-003', name: 'Warehouse C' }
+  ];
+
   const handleVendorChange = (vendorId: string) => {
     const vendor = vendors.find(v => v.id === vendorId);
     setFormData({
@@ -117,6 +123,15 @@ const EditPOModal: React.FC<EditPOModalProps> = ({ isOpen, onClose, po }) => {
       selectedVendor: vendorId,
       vendorAddress: vendor?.address || ''
     });
+  };
+
+  const handleWarehouseChange = (warehouseId: string) => {
+    setFormData(prev => ({
+      ...prev,
+      selectedWarehouses: prev.selectedWarehouses.includes(warehouseId)
+        ? prev.selectedWarehouses.filter(id => id !== warehouseId)
+        : [...prev.selectedWarehouses, warehouseId]
+    }));
   };
 
   const handleAddPaymentTerm = () => {
@@ -252,19 +267,26 @@ const EditPOModal: React.FC<EditPOModalProps> = ({ isOpen, onClose, po }) => {
               </select>
             </div>
 
-            <div>
+            <div className="md:col-span-3">
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Received Location
+                Delivery Warehouses
               </label>
-              <input
-                type="text"
-                value={formData.receivedLocation}
-                onChange={(e) => setFormData({...formData, receivedLocation: e.target.value})}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
+              <div className="grid grid-cols-3 gap-4">
+                {warehouses.map(warehouse => (
+                  <label key={warehouse.id} className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      checked={formData.selectedWarehouses.includes(warehouse.id)}
+                      onChange={() => handleWarehouseChange(warehouse.id)}
+                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    />
+                    <span className="text-sm text-gray-700">{warehouse.name}</span>
+                  </label>
+                ))}
+              </div>
             </div>
 
-            <div className="md:col-span-2">
+            <div className="md:col-span-3">
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Vendor Address
               </label>
