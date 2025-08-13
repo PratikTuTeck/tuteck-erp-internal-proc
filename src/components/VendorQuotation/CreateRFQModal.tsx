@@ -15,6 +15,15 @@ interface ItemDetail {
   selectedVendors: string[];
 }
 
+interface AggregatedItem {
+  itemCode: string;
+  itemName: string;
+  uom: string;
+  totalProcureQty: number;
+  selectedVendors: string[];
+  sourceIndents: string[];
+}
+
 const CreateRFQModal: React.FC<CreateRFQModalProps> = ({ isOpen, onClose }) => {
   const [showSelectVendors, setShowSelectVendors] = useState(false);
   const [selectedItemIndex, setSelectedItemIndex] = useState<number | null>(null);
@@ -26,7 +35,7 @@ const CreateRFQModal: React.FC<CreateRFQModalProps> = ({ isOpen, onClose }) => {
     description: ''
   });
 
-  const [itemDetails, setItemDetails] = useState<ItemDetail[]>([]);
+  const [aggregatedItems, setAggregatedItems] = useState<AggregatedItem[]>([]);
 
   if (!isOpen) return null;
 
@@ -42,24 +51,73 @@ const CreateRFQModal: React.FC<CreateRFQModalProps> = ({ isOpen, onClose }) => {
     { id: 'WH-003', name: 'Warehouse C' }
   ];
 
-  const handleIndentChange = (indentId: string) => {
-    setSelectedIndents(prev => 
-      prev.includes(indentId) 
-        ? prev.filter(id => id !== indentId)
-        : [...prev, indentId]
-    );
+  // Mock data for indent items
+  const indentItems = {
+    'IND-001': [
+      { itemCode: 'ITM-001', itemName: 'Steel Rod', uom: 'Kg', procureQty: 10 },
+      { itemCode: 'ITM-002', itemName: 'Steel Plate', uom: 'Kg', procureQty: 10 }
+    ],
+    'IND-002': [
+      { itemCode: 'ITM-001', itemName: 'Steel Rod', uom: 'Kg', procureQty: 10 },
+      { itemCode: 'ITM-003', itemName: 'Steel Wire', uom: 'Meter', procureQty: 2 }
+    ],
+    'IND-003': [
+      { itemCode: 'ITM-004', itemName: 'Safety Helmet', uom: 'Piece', procureQty: 5 }
+    ]
+  };
 
-    // Aggregate common items when indents are selected
-    if (!selectedIndents.includes(indentId)) {
-      // Mock aggregation logic - in real app, this would aggregate items from selected indents
-      const newItems = [
-        { itemCode: 'ITM-001', itemName: 'Steel Rod', uom: 'Kg', procureQty: 100, selectedVendors: [] },
-        { itemCode: 'ITM-002', itemName: 'Steel Plate', uom: 'Kg', procureQty: 50, selectedVendors: [] }
-      ];
-      setItemDetails(prev => [...prev, ...newItems]);
+  const aggregateItems = (indentIds: string[]) => {
+    const itemMap = new Map<string, AggregatedItem>();
+    
+    indentIds.forEach(indentId => {
+      const items = indentItems[indentId as keyof typeof indentItems] || [];
+      items.forEach(item => {
+        const key = item.itemCode;
+        if (itemMap.has(key)) {
+          const existing = itemMap.get(key)!;
+          existing.totalProcureQty += item.procureQty;
+          existing.sourceIndents.push(indentId);
+        } else {
+          itemMap.set(key, {
+            itemCode: item.itemCode,
+            itemName: item.itemName,
+            uom: item.uom,
+            totalProcureQty: item.procureQty,
+            selectedVendors: [],
+            sourceIndents: [indentId]
+          });
+        }
+      });
+    });
+    
+    return Array.from(itemMap.values());
+  };
+
+  const handleIndentChange = (indentId: string) => {
+    const newSelectedIndents = selectedIndents.includes(indentId) 
+      ? selectedIndents.filter(id => id !== indentId)
+      : [...selectedIndents, indentId];
+    
+    setSelectedIndents(newSelectedIndents);
+    
+    // Aggregate items from selected indents
+    if (newSelectedIndents.length > 0) {
+      const aggregated = aggregateItems(newSelectedIndents);
+      setAggregatedItems(aggregated);
     } else {
-      // Remove items when indent is deselected
-      setItemDetails([]);
+      setAggregatedItems([]);
+    }
+  };
+
+  const handleRemoveIndent = (indentId: string) => {
+    const newSelectedIndents = selectedIndents.filter(id => id !== indentId);
+    setSelectedIndents(newSelectedIndents);
+    
+    if (newSelectedIndents.length > 0) {
+      const aggregated = aggregateItems(newSelectedIndents);
+      setAggregatedItems(aggregated);
+    } else {
+      setAggregatedItems([]);
     }
   };
 
@@ -71,6 +129,10 @@ const CreateRFQModal: React.FC<CreateRFQModalProps> = ({ isOpen, onClose }) => {
     );
   };
 
+  const handleRemoveWarehouse = (warehouseId: string) => {
+    setSelectedWarehouses(prev => prev.filter(id => id !== warehouseId));
+  };
+
   const handleSelectVendors = (itemIndex: number) => {
     setSelectedItemIndex(itemIndex);
     setShowSelectVendors(true);
@@ -78,9 +140,9 @@ const CreateRFQModal: React.FC<CreateRFQModalProps> = ({ isOpen, onClose }) => {
 
   const handleVendorsSelected = (vendors: string[]) => {
     if (selectedItemIndex !== null) {
-      const updatedItems = [...itemDetails];
+      const updatedItems = [...aggregatedItems];
       updatedItems[selectedItemIndex].selectedVendors = vendors;
-      setItemDetails(updatedItems);
+      setAggregatedItems(updatedItems);
     }
     setShowSelectVendors(false);
     setSelectedItemIndex(null);
@@ -92,13 +154,13 @@ const CreateRFQModal: React.FC<CreateRFQModalProps> = ({ isOpen, onClose }) => {
       return;
     }
 
-    const hasUnselectedVendors = itemDetails.some(item => item.selectedVendors.length === 0);
+    const hasUnselectedVendors = aggregatedItems.some(item => item.selectedVendors.length === 0);
     if (hasUnselectedVendors) {
       alert('Please select vendors for all items');
       return;
     }
 
-    console.log('Saving RFQ:', { selectedIndents, selectedWarehouses, formData, itemDetails });
+    console.log('Saving RFQ:', { selectedIndents, selectedWarehouses, formData, aggregatedItems });
     onClose();
   };
 
@@ -123,38 +185,84 @@ const CreateRFQModal: React.FC<CreateRFQModalProps> = ({ isOpen, onClose }) => {
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Select Indents <span className="text-red-500">*</span>
                 </label>
-                <div className="space-y-2 max-h-32 overflow-y-auto border border-gray-300 rounded-lg p-3">
+                <select 
+                  multiple
+                  value={selectedIndents}
+                  onChange={(e) => {
+                    const values = Array.from(e.target.selectedOptions, option => option.value);
+                    setSelectedIndents(values);
+                    if (values.length > 0) {
+                      const aggregated = aggregateItems(values);
+                      setAggregatedItems(aggregated);
+                    } else {
+                      setAggregatedItems([]);
+                    }
+                  }}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 h-32"
+                >
                   {indents.map(indent => (
-                    <label key={indent.id} className="flex items-center space-x-2">
-                      <input
-                        type="checkbox"
-                        checked={selectedIndents.includes(indent.id)}
-                        onChange={() => handleIndentChange(indent.id)}
-                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                      />
-                      <span className="text-sm text-gray-700">{indent.name}</span>
-                    </label>
+                    <option key={indent.id} value={indent.id}>{indent.name}</option>
                   ))}
-                </div>
+                </select>
+                
+                {/* Selected Indents Capsules */}
+                {selectedIndents.length > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {selectedIndents.map(indentId => {
+                      const indent = indents.find(i => i.id === indentId);
+                      return (
+                        <span key={indentId} className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-blue-100 text-blue-800">
+                          {indent?.name}
+                          <button
+                            onClick={() => handleRemoveIndent(indentId)}
+                            className="ml-2 text-blue-600 hover:text-blue-800"
+                          >
+                            ×
+                          </button>
+                        </span>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Select Warehouses
                 </label>
-                <div className="space-y-2 max-h-32 overflow-y-auto border border-gray-300 rounded-lg p-3">
+                <select 
+                  multiple
+                  value={selectedWarehouses}
+                  onChange={(e) => {
+                    const values = Array.from(e.target.selectedOptions, option => option.value);
+                    setSelectedWarehouses(values);
+                  }}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 h-32"
+                >
                   {warehouses.map(warehouse => (
-                    <label key={warehouse.id} className="flex items-center space-x-2">
-                      <input
-                        type="checkbox"
-                        checked={selectedWarehouses.includes(warehouse.id)}
-                        onChange={() => handleWarehouseChange(warehouse.id)}
-                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                      />
-                      <span className="text-sm text-gray-700">{warehouse.name}</span>
-                    </label>
+                    <option key={warehouse.id} value={warehouse.id}>{warehouse.name}</option>
                   ))}
-                </div>
+                </select>
+                
+                {/* Selected Warehouses Capsules */}
+                {selectedWarehouses.length > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {selectedWarehouses.map(warehouseId => {
+                      const warehouse = warehouses.find(w => w.id === warehouseId);
+                      return (
+                        <span key={warehouseId} className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-green-100 text-green-800">
+                          {warehouse?.name}
+                          <button
+                            onClick={() => handleRemoveWarehouse(warehouseId)}
+                            className="ml-2 text-green-600 hover:text-green-800"
+                          >
+                            ×
+                          </button>
+                        </span>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
 
               <div>
@@ -206,19 +314,29 @@ const CreateRFQModal: React.FC<CreateRFQModalProps> = ({ isOpen, onClose }) => {
                       <tr>
                         <th className="text-left py-3 px-4 font-medium text-gray-900">Item</th>
                         <th className="text-left py-3 px-4 font-medium text-gray-900">UOM</th>
-                        <th className="text-left py-3 px-4 font-medium text-gray-900">Procure Qty</th>
+                        <th className="text-left py-3 px-4 font-medium text-gray-900">Total Procure Qty</th>
+                        <th className="text-left py-3 px-4 font-medium text-gray-900">Source Indents</th>
                         <th className="text-left py-3 px-4 font-medium text-gray-900">Vendor Option</th>
                         <th className="text-center py-3 px-4 font-medium text-gray-900">Action</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {itemDetails.map((item, index) => (
+                      {aggregatedItems.map((item, index) => (
                         <tr key={index} className="border-t border-gray-200">
                           <td className="py-3 px-4 font-medium text-gray-900">
                             {item.itemCode} - {item.itemName}
                           </td>
                           <td className="py-3 px-4 text-gray-600">{item.uom}</td>
-                          <td className="py-3 px-4 text-gray-600">{item.procureQty}</td>
+                          <td className="py-3 px-4 text-gray-600">{item.totalProcureQty}</td>
+                          <td className="py-3 px-4 text-gray-600">
+                            <div className="flex flex-wrap gap-1">
+                              {item.sourceIndents.map(indentId => (
+                                <span key={indentId} className="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs">
+                                  {indentId}
+                                </span>
+                              ))}
+                            </div>
+                          </td>
                           <td className="py-3 px-4 text-gray-600">
                             {item.selectedVendors.length > 0 
                               ? item.selectedVendors.join(', ')
@@ -272,7 +390,7 @@ const CreateRFQModal: React.FC<CreateRFQModalProps> = ({ isOpen, onClose }) => {
             setSelectedItemIndex(null);
           }}
           onVendorsSelected={handleVendorsSelected}
-          itemName={itemDetails[selectedItemIndex].itemName}
+          itemName={aggregatedItems[selectedItemIndex].itemName}
         />
       )}
     </>

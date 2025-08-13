@@ -289,20 +289,41 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
 
             <div className="md:col-span-3">
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Delivery Warehouses
+                Delivery Warehouse
               </label>
-              <div className="grid grid-cols-3 gap-4">
+              <select 
+                multiple
+                value={formData.selectedWarehouses}
+                onChange={(e) => {
+                  const values = Array.from(e.target.selectedOptions, option => option.value);
+                  setFormData(prev => ({...prev, selectedWarehouses: values}));
+                }}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 h-32"
+              >
                 {warehouses.map(warehouse => (
-                  <label key={warehouse.id} className="flex items-center space-x-2">
-                    <input
-                      type="checkbox"
-                      checked={formData.selectedWarehouses.includes(warehouse.id)}
-                      onChange={() => handleWarehouseChange(warehouse.id)}
-                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                    />
-                    <span className="text-sm text-gray-700">{warehouse.name}</span>
-                  </label>
+                  <option key={warehouse.id} value={warehouse.id}>{warehouse.name}</option>
                 ))}
+              </select>
+              
+              {/* Selected Warehouses Capsules */}
+              {formData.selectedWarehouses.length > 0 && (
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {formData.selectedWarehouses.map(warehouseId => {
+                    const warehouse = warehouses.find(w => w.id === warehouseId);
+                    return (
+                      <span key={warehouseId} className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-green-100 text-green-800">
+                        {warehouse?.name}
+                        <button
+                          onClick={() => handleWarehouseChange(warehouseId)}
+                          className="ml-2 text-green-600 hover:text-green-800"
+                        >
+                          ×
+                        </button>
+                      </span>
+                    );
+                  })}
+                </div>
+              )}
               </div>
             </div>
 
@@ -317,6 +338,27 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-600"
               />
             </div>
+
+            {/* Warehouse Delivery Addresses */}
+            {formData.selectedWarehouses.length > 0 && (
+              <div className="md:col-span-3">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Warehouse Delivery Addresses
+                </label>
+                <div className="space-y-2">
+                  {formData.selectedWarehouses.map(warehouseId => {
+                    const warehouse = warehouses.find(w => w.id === warehouseId);
+                    const mockAddress = `${warehouse?.name} - 123 Industrial Area, Sector ${warehouseId.slice(-1)}, City - 40000${warehouseId.slice(-1)}`;
+                    return (
+                      <div key={warehouseId} className="p-3 bg-gray-50 rounded-lg">
+                        <p className="font-medium text-gray-900">{warehouse?.name}</p>
+                        <p className="text-sm text-gray-600">{mockAddress}</p>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Vendor Details */}
