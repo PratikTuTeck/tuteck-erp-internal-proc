@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { X, Search } from 'lucide-react';
-import { Select, MenuItem, Chip, FormControl, InputLabel, Box } from '@mui/material';
+import { Select, MenuItem, Chip, FormControl, InputLabel, Box, OutlinedInput } from '@mui/material';
 import SelectVendorsModal from './SelectVendorsModal';
 
 interface CreateRFQModalProps {
@@ -186,8 +186,228 @@ const CreateRFQModal: React.FC<CreateRFQModalProps> = ({ isOpen, onClose }) => {
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Select Indents <span className="text-red-500">*</span>
                 </label>
-                <select 
-                  multiple
+                <FormControl fullWidth>
+                  <Select
+                    multiple
+                    value={selectedIndents}
+                    onChange={(e) => {
+                      const values = typeof e.target.value === 'string' ? e.target.value.split(',') : e.target.value;
+                      setSelectedIndents(values);
+                      if (values.length > 0) {
+                        const aggregated = aggregateItems(values);
+                        setAggregatedItems(aggregated);
+                      } else {
+                        setAggregatedItems([]);
+                      }
+                    }}
+                    input={<OutlinedInput />}
+                    renderValue={(selected) => (
+                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                        {selected.map((value) => {
+                          const indent = indents.find(i => i.id === value);
+                          return (
+                            <Chip
+                              key={value}
+                              label={indent?.name}
+                              onDelete={() => handleRemoveIndent(value)}
+                              size="small"
+                            />
+                          );
+                        })}
+                      </Box>
+                    )}
+                    sx={{
+                      '& .MuiOutlinedInput-root': {
+                        borderRadius: '8px',
+                      }
+                    }}
+                  >
+                    {indents.map(indent => (
+                      <MenuItem key={indent.id} value={indent.id}>
+                        {indent.name}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Select Warehouses
+                </label>
+                <FormControl fullWidth>
+                  <Select
+                    multiple
+                    value={selectedWarehouses}
+                    onChange={(e) => {
+                      const values = typeof e.target.value === 'string' ? e.target.value.split(',') : e.target.value;
+                      setSelectedWarehouses(values);
+                    }}
+                    input={<OutlinedInput />}
+                    renderValue={(selected) => (
+                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                        {selected.map((value) => {
+                          const warehouse = warehouses.find(w => w.id === value);
+                          return (
+                            <Chip
+                              key={value}
+                              label={warehouse?.name}
+                              onDelete={() => handleRemoveWarehouse(value)}
+                              size="small"
+                            />
+                          );
+                        })}
+                      </Box>
+                    )}
+                    sx={{
+                      '& .MuiOutlinedInput-root': {
+                        borderRadius: '8px',
+                      }
+                    }}
+                  >
+                    {warehouses.map(warehouse => (
+                      <MenuItem key={warehouse.id} value={warehouse.id}>
+                        {warehouse.name}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  RFQ Date <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="date"
+                  value={formData.rfqDate}
+                  onChange={(e) => setFormData(prev => ({ ...prev, rfqDate: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  End Date <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="date"
+                  value={formData.endDate}
+                  onChange={(e) => setFormData(prev => ({ ...prev, endDate: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Description
+              </label>
+              <textarea
+                value={formData.description}
+                onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
+                rows={3}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Enter RFQ description..."
+              />
+            </div>
+
+            {/* Aggregated Items Table */}
+            {aggregatedItems.length > 0 && (
+              <div>
+                <h3 className="text-lg font-medium text-gray-900 mb-4">Items from Selected Indents</h3>
+                <div className="overflow-x-auto">
+                  <table className="min-w-full bg-white border border-gray-200 rounded-lg">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="py-3 px-4 text-left text-sm font-medium text-gray-700 border-b">Item Code</th>
+                        <th className="py-3 px-4 text-left text-sm font-medium text-gray-700 border-b">Item Name</th>
+                        <th className="py-3 px-4 text-left text-sm font-medium text-gray-700 border-b">UOM</th>
+                        <th className="py-3 px-4 text-left text-sm font-medium text-gray-700 border-b">Total Qty</th>
+                        <th className="py-3 px-4 text-left text-sm font-medium text-gray-700 border-b">Source Indents</th>
+                        <th className="py-3 px-4 text-left text-sm font-medium text-gray-700 border-b">Selected Vendors</th>
+                        <th className="py-3 px-4 text-center text-sm font-medium text-gray-700 border-b">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {aggregatedItems.map((item, index) => (
+                        <tr key={item.itemCode} className="hover:bg-gray-50">
+                          <td className="py-3 px-4 text-gray-900 border-b">{item.itemCode}</td>
+                          <td className="py-3 px-4 text-gray-900 border-b">{item.itemName}</td>
+                          <td className="py-3 px-4 text-gray-600 border-b">{item.uom}</td>
+                          <td className="py-3 px-4 text-gray-600 border-b">{item.totalProcureQty}</td>
+                          <td className="py-3 px-4 text-gray-600">
+                            <div className="flex flex-wrap gap-1">
+                              {item.sourceIndents.map(indentId => (
+                                <span key={indentId} className="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs">
+                                  {indentId}
+                                </span>
+                              ))}
+                            </div>
+                          </td>
+                          <td className="py-3 px-4 text-gray-600">
+                            {item.selectedVendors.length > 0 
+                              ? item.selectedVendors.join(', ')
+                              : 'No vendors selected'
+                            }
+                          </td>
+                          <td className="py-3 px-4 text-center">
+                            <button
+                              onClick={() => handleSelectVendors(index)}
+                              className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors text-sm"
+                            >
+                              Select Vendors
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="flex items-center justify-end space-x-3 p-6 border-t border-gray-200">
+            <button
+              onClick={onClose}
+              className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+            >
+              Cancel
+            </button>
+            <button 
+              onClick={handleSaveRFQ}
+              disabled={selectedIndents.length === 0 || !formData.endDate}
+              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                selectedIndents.length > 0 && formData.endDate
+                  ? 'bg-blue-600 text-white hover:bg-blue-700'
+                  : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+              }`}
+            >
+              Save RFQ
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {showSelectVendors && selectedItemIndex !== null && (
+        <SelectVendorsModal
+          isOpen={showSelectVendors}
+          onClose={() => {
+            setShowSelectVendors(false);
+            setSelectedItemIndex(null);
+          }}
+          onVendorsSelected={handleVendorsSelected}
+          itemName={aggregatedItems[selectedItemIndex].itemName}
+        />
+      )}
+    </>
+  );
+};
+
+export default CreateRFQModal;
                   value={selectedIndents}
                   onChange={(e) => {
                     const values = Array.from(e.target.selectedOptions, option => option.value);
