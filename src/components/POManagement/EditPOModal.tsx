@@ -339,7 +339,6 @@ const EditPOModal: React.FC<EditPOModalProps> = ({ isOpen, onClose, po }) => {
               </div>
             )}
           </div>
-          </div>
 
           {/* Vendor Details */}
           <div>
