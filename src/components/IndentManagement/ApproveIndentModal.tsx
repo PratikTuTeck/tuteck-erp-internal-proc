@@ -1,5 +1,13 @@
-import React, { useState } from 'react';
-import { X, FileText, User, Calendar, Package, CheckCircle, XCircle } from 'lucide-react';
+import React, { useState } from "react";
+import {
+  X,
+  FileText,
+  User,
+  Calendar,
+  Package,
+  CheckCircle,
+  XCircle,
+} from "lucide-react";
 
 interface ApproveIndentModalProps {
   isOpen: boolean;
@@ -28,21 +36,75 @@ interface ApproveIndentModalProps {
   };
 }
 
-const ApproveIndentModal: React.FC<ApproveIndentModalProps> = ({ isOpen, onClose, indent }) => {
-  const [approvalComment, setApprovalComment] = useState('');
+const ApproveIndentModal: React.FC<ApproveIndentModalProps> = ({
+  isOpen,
+  onClose,
+  indent,
+}) => {
+  const [approvalComment, setApprovalComment] = useState("");
 
   if (!isOpen) return null;
 
-  const handleApprove = () => {
-    // Handle approval logic
-    console.log('Approving indent:', indent.indentNumber, 'with comment:', approvalComment);
-    onClose();
+  const handleApprove = async () => {
+    try {
+      const response = await fetch(
+        `${import.meta.env.VITE_API_BASE_URL}/indent/${
+          indent.id
+        }/decision?status=approved`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error("Error approving indent:", errorData);
+        alert(errorData.clientMessage || "Failed to approve the indent.");
+        return;
+      }
+
+      const result = await response.json();
+      console.log("Indent approved successfully:", result);
+      alert("Indent approved successfully!");
+      onClose();
+    } catch (error) {
+      console.error("Error approving indent:", error);
+      alert("An error occurred while approving the indent.");
+    }
   };
 
-  const handleReject = () => {
-    // Handle rejection logic
-    console.log('Rejecting indent:', indent.indentNumber, 'with comment:', approvalComment);
-    onClose();
+  const handleReject = async () => {
+    try {
+      const response = await fetch(
+        `${import.meta.env.VITE_API_BASE_URL}/indent/${
+          indent.id
+        }/decision?status=rejected`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error("Error rejecting indent:", errorData);
+        alert(errorData.clientMessage || "Failed to reject the indent.");
+        return;
+      }
+
+      const result = await response.json();
+      console.log("Indent rejected successfully:", result);
+      alert("Indent rejected successfully!");
+      onClose();
+    } catch (error) {
+      console.error("Error rejecting indent:", error);
+      alert("An error occurred while rejecting the indent.");
+    }
   };
 
   return (
@@ -51,7 +113,9 @@ const ApproveIndentModal: React.FC<ApproveIndentModalProps> = ({ isOpen, onClose
         <div className="flex items-center justify-between p-6 border-b border-gray-200">
           <div className="flex items-center space-x-3">
             <FileText className="w-6 h-6 text-orange-600" />
-            <h2 className="text-xl font-semibold text-gray-900">Approve Indent</h2>
+            <h2 className="text-xl font-semibold text-gray-900">
+              Approve Indent
+            </h2>
             <span className="px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
               Pending Approval
             </span>
@@ -72,15 +136,19 @@ const ApproveIndentModal: React.FC<ApproveIndentModalProps> = ({ isOpen, onClose
                 <FileText className="w-5 h-5 text-gray-400" />
                 <div>
                   <p className="text-sm text-gray-500">Indent Number</p>
-                  <p className="font-medium text-gray-900">{indent.indentNumber}</p>
+                  <p className="font-medium text-gray-900">
+                    {indent.indentNumber}
+                  </p>
                 </div>
               </div>
-              
+
               <div className="flex items-center space-x-3">
                 <Package className="w-5 h-5 text-gray-400" />
                 <div>
                   <p className="text-sm text-gray-500">Project Name</p>
-                  <p className="font-medium text-gray-900">{indent.projectName}</p>
+                  <p className="font-medium text-gray-900">
+                    {indent.projectName}
+                  </p>
                 </div>
               </div>
 
@@ -88,7 +156,9 @@ const ApproveIndentModal: React.FC<ApproveIndentModalProps> = ({ isOpen, onClose
                 <User className="w-5 h-5 text-gray-400" />
                 <div>
                   <p className="text-sm text-gray-500">Created By</p>
-                  <p className="font-medium text-gray-900">{indent.createdBy}</p>
+                  <p className="font-medium text-gray-900">
+                    {indent.createdBy}
+                  </p>
                 </div>
               </div>
 
@@ -96,7 +166,9 @@ const ApproveIndentModal: React.FC<ApproveIndentModalProps> = ({ isOpen, onClose
                 <Package className="w-5 h-5 text-gray-400" />
                 <div>
                   <p className="text-sm text-gray-500">No Of Items</p>
-                  <p className="font-medium text-gray-900">{indent.noOfItems}</p>
+                  <p className="font-medium text-gray-900">
+                    {indent.noOfItems}
+                  </p>
                 </div>
               </div>
             </div>
@@ -106,7 +178,9 @@ const ApproveIndentModal: React.FC<ApproveIndentModalProps> = ({ isOpen, onClose
                 <Calendar className="w-5 h-5 text-gray-400" />
                 <div>
                   <p className="text-sm text-gray-500">Requested Date</p>
-                  <p className="font-medium text-gray-900">{indent.requestedOn}</p>
+                  <p className="font-medium text-gray-900">
+                    {indent.requestedOn}
+                  </p>
                 </div>
               </div>
 
@@ -114,7 +188,9 @@ const ApproveIndentModal: React.FC<ApproveIndentModalProps> = ({ isOpen, onClose
                 <Calendar className="w-5 h-5 text-gray-400" />
                 <div>
                   <p className="text-sm text-gray-500">Expected Date</p>
-                  <p className="font-medium text-gray-900">{indent.expectedDate}</p>
+                  <p className="font-medium text-gray-900">
+                    {indent.expectedDate}
+                  </p>
                 </div>
               </div>
 
@@ -122,7 +198,9 @@ const ApproveIndentModal: React.FC<ApproveIndentModalProps> = ({ isOpen, onClose
                 <Package className="w-5 h-5 text-gray-400" />
                 <div>
                   <p className="text-sm text-gray-500">Warehouse</p>
-                  <p className="font-medium text-gray-900">{indent.warehouseName}</p>
+                  <p className="font-medium text-gray-900">
+                    {indent.warehouseName}
+                  </p>
                 </div>
               </div>
 
@@ -141,7 +219,9 @@ const ApproveIndentModal: React.FC<ApproveIndentModalProps> = ({ isOpen, onClose
           {/* Original Comment Section */}
           {indent.comment && (
             <div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">Original Comment</h3>
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                Original Comment
+              </h3>
               <div className="bg-gray-50 rounded-lg p-4">
                 <p className="text-gray-600">{indent.comment}</p>
               </div>
@@ -150,26 +230,46 @@ const ApproveIndentModal: React.FC<ApproveIndentModalProps> = ({ isOpen, onClose
 
           {/* Item Details Table */}
           <div>
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Item Details</h3>
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">
+              Item Details
+            </h3>
             <div className="overflow-x-auto">
               <table className="w-full border border-gray-200 rounded-lg">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th className="text-left py-3 px-4 font-medium text-gray-900">HSN Code</th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-900">Item Code</th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-900">Item Name</th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-900">UOM</th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-900">Required Qty</th>
+                    <th className="text-left py-3 px-4 font-medium text-gray-900">
+                      HSN Code
+                    </th>
+                    <th className="text-left py-3 px-4 font-medium text-gray-900">
+                      Item Code
+                    </th>
+                    <th className="text-left py-3 px-4 font-medium text-gray-900">
+                      Item Name
+                    </th>
+                    <th className="text-left py-3 px-4 font-medium text-gray-900">
+                      UOM
+                    </th>
+                    <th className="text-left py-3 px-4 font-medium text-gray-900">
+                      Required Qty
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
                   {indent.items.map((item, index) => (
                     <tr key={index} className="border-t border-gray-200">
-                      <td className="py-3 px-4 text-gray-600">{item.hsnCode}</td>
-                      <td className="py-3 px-4 font-medium text-gray-900">{item.itemCode}</td>
-                      <td className="py-3 px-4 text-gray-600">{item.itemName}</td>
+                      <td className="py-3 px-4 text-gray-600">
+                        {item.hsnCode}
+                      </td>
+                      <td className="py-3 px-4 font-medium text-gray-900">
+                        {item.itemCode}
+                      </td>
+                      <td className="py-3 px-4 text-gray-600">
+                        {item.itemName}
+                      </td>
                       <td className="py-3 px-4 text-gray-600">{item.uom}</td>
-                      <td className="py-3 px-4 text-gray-600">{item.requiredQty}</td>
+                      <td className="py-3 px-4 text-gray-600">
+                        {item.requiredQty}
+                      </td>
                     </tr>
                   ))}
                 </tbody>

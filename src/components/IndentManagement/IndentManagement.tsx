@@ -42,7 +42,7 @@ const IndentManagement: React.FC = () => {
   // Fetch indents when component mounts
   useEffect(() => {
     fetchIndents();
-  }, []);
+  }, [showApproveModal]);
 
   const fetchIndents = async () => {
     setLoading(true);
@@ -69,8 +69,9 @@ const IndentManagement: React.FC = () => {
             approvedOn: apiIndent.approved_on
               ? new Date(apiIndent.approved_on).toISOString().split("T")[0]
               : "",
-            status: apiIndent.status?.toLowerCase() || "pending",
-            aggregateStatus: apiIndent.approval_status || "PENDING",
+            status: apiIndent.approval_status?.toLowerCase() || "pending",
+            IndentStatus: apiIndent.status || "PENDING",
+            aggregateStatus: "PENDING",
             projectName:
               apiIndent.association_type === "Lead"
                 ? "Lead Project"
@@ -97,8 +98,6 @@ const IndentManagement: React.FC = () => {
     fetchIndents();
   };
 
-
-
   const getStatusColor = (status: string) => {
     switch (status) {
       case "approved":
@@ -115,7 +114,48 @@ const IndentManagement: React.FC = () => {
   const handleViewIndent = async (id: string) => {
     try {
       const response = await fetch(
-        `${import.meta.env.VITE_API_BASE_URL}/indents/${id}`
+        `${import.meta.env.VITE_API_BASE_URL}/indent/${id}`
+      );
+      if (!response.ok) {
+        throw new Error("Failed to fetch indent details");
+      }
+
+      const apiData = await response.json();
+      const mappedIndent = {
+        id: apiData.data.id,
+        indentNumber: apiData.data.indent_number,
+        createdBy: apiData.data.created_by,
+        requestedOn: apiData.data.request_date,
+        warehouseName: apiData.data.recieving_warehouse || "N/A",
+        expectedDate: apiData.data.expected_date,
+        approvedBy: apiData.data.approved_by || "-",
+        approvedOn: apiData.data.approved_on || "-",
+        status: apiData.data.approval_status,
+        aggregateStatus: apiData.data.approval_status,
+        projectName: apiData.data.association_type || "N/A",
+        noOfItems: apiData.data.items.length,
+        comment: apiData.data.comment,
+        items: apiData.data.items.map((item: any) => ({
+          hsnCode: item.hsn_code,
+          itemCode: item.item_code,
+          itemName: item.item_name,
+          uom: item.uom_name,
+          requiredQty: parseFloat(item.required_quantity),
+        })),
+      };
+
+      setSelectedIndent(mappedIndent);
+      setShowViewModal(true);
+    } catch (error) {
+      console.error("Error fetching indent details:", error);
+      alert("Failed to fetch indent details. Please try again later.");
+    }
+  };
+
+  const handleApproveIndent = async (id: string) => {
+    try {
+      const response = await fetch(
+        `${import.meta.env.VITE_API_BASE_URL}/indent/${id}`
       );
       if (!response.ok) {
         throw new Error("Failed to fetch indent details");
@@ -146,16 +186,11 @@ const IndentManagement: React.FC = () => {
       };
 
       setSelectedIndent(mappedIndent);
-      setShowViewModal(true);
+      setShowApproveModal(true);
     } catch (error) {
       console.error("Error fetching indent details:", error);
       alert("Failed to fetch indent details. Please try again later.");
     }
-  };
-
-  const handleApproveIndent = (indent: Indent) => {
-    setSelectedIndent(indent);
-    setShowApproveModal(true);
   };
 
   const filteredIndents = indents.filter(
@@ -222,23 +257,23 @@ const IndentManagement: React.FC = () => {
                   <th className="text-left py-3 px-4 font-medium text-gray-900">
                     Indent Number
                   </th>
-                  <th className="text-left py-3 px-4 font-medium text-gray-900">
+                  {/* <th className="text-left py-3 px-4 font-medium text-gray-900">
                     Created By
-                  </th>
+                  </th> */}
                   <th className="text-left py-3 px-4 font-medium text-gray-900">
                     Requested On
                   </th>
                   <th className="text-left py-3 px-4 font-medium text-gray-900">
                     Expected Date
                   </th>
-                  <th className="text-left py-3 px-4 font-medium text-gray-900">
+                  {/* <th className="text-left py-3 px-4 font-medium text-gray-900">
                     Approved By
-                  </th>
+                  </th> */}
                   <th className="text-left py-3 px-4 font-medium text-gray-900">
                     Approved On
                   </th>
                   <th className="text-left py-3 px-4 font-medium text-gray-900">
-                    Status
+                    Approval Status
                   </th>
                   <th className="text-center py-3 px-4 font-medium text-gray-900">
                     Actions
@@ -254,18 +289,18 @@ const IndentManagement: React.FC = () => {
                     <td className="py-4 px-4 font-medium text-gray-900">
                       {indent.indentNumber}
                     </td>
-                    <td className="py-4 px-4 text-gray-600">
+                    {/* <td className="py-4 px-4 text-gray-600">
                       {indent.createdBy}
-                    </td>
+                    </td> */}
                     <td className="py-4 px-4 text-gray-600">
                       {indent.requestedOn}
                     </td>
                     <td className="py-4 px-4 text-gray-600">
                       {indent.expectedDate}
                     </td>
-                    <td className="py-4 px-4 text-gray-600">
+                    {/* <td className="py-4 px-4 text-gray-600">
                       {indent.approvedBy || "-"}
-                    </td>
+                    </td> */}
                     <td className="py-4 px-4 text-gray-600">
                       {indent.approvedOn || "-"}
                     </td>
@@ -282,10 +317,9 @@ const IndentManagement: React.FC = () => {
                     <td className="py-4 px-4">
                       <div className="flex items-center justify-center space-x-2">
                         <button
-                          onClick={() => handleViewIndent(indent)}
+                          onClick={() => handleViewIndent(indent.id)}
                           className="p-1 text-blue-600 hover:text-blue-800 transition-colors"
                           title="View"
-
                         >
                           <Eye className="w-4 h-4" />
                         </button>
@@ -297,7 +331,7 @@ const IndentManagement: React.FC = () => {
                         </button>
                         {indent.status === "pending" && (
                           <button
-                            onClick={() => handleApproveIndent(indent)}
+                            onClick={() => handleApproveIndent(indent.id)}
                             className="p-1 text-green-600 hover:text-green-800 transition-colors"
                             title="Approve"
                           >
@@ -312,7 +346,6 @@ const IndentManagement: React.FC = () => {
             </table>
           </div>
         )}
-
       </div>
 
       {/* Modals */}
