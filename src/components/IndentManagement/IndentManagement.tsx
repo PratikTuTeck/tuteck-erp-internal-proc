@@ -57,11 +57,11 @@ const IndentManagement: React.FC = () => {
           (apiIndent: any) => ({
             id: apiIndent.id,
             indentNumber: apiIndent.indent_number,
-            createdBy: apiIndent.created_by || "System", // Default if not provided
+            createdBy: apiIndent.created_by || "System",
             requestedOn: apiIndent.request_date
               ? new Date(apiIndent.request_date).toISOString().split("T")[0]
               : "",
-            warehouseName: apiIndent.recieving_warehouse || "N/A",
+            warehouseName: apiIndent.recieving_warehouse || "N/A", // This should be resolved from warehouse table
             expectedDate: apiIndent.expected_date
               ? new Date(apiIndent.expected_date).toISOString().split("T")[0]
               : "",
@@ -70,15 +70,14 @@ const IndentManagement: React.FC = () => {
               ? new Date(apiIndent.approved_on).toISOString().split("T")[0]
               : "",
             status: apiIndent.approval_status?.toLowerCase() || "pending",
-            IndentStatus: apiIndent.status || "PENDING",
-            aggregateStatus: "PENDING",
+            aggregateStatus: apiIndent.status || "PENDING",
             projectName:
               apiIndent.association_type === "Lead"
                 ? "Lead Project"
-                : "Warehouse Project", // Default project name
-            noOfItems: 0, // This would need to come from indent details API
+                : "Warehouse Project",
+            noOfItems: 0, // This comes from joined indent_details count
             comment: apiIndent.comment || "",
-            items: [], // This would need to come from indent details API
+            items: [] // This comes from joined indent_details
           })
         );
         setIndents(transformedIndents);
@@ -126,20 +125,20 @@ const IndentManagement: React.FC = () => {
         indentNumber: apiData.data.indent_number,
         createdBy: apiData.data.created_by,
         requestedOn: apiData.data.request_date,
-        warehouseName: apiData.data.recieving_warehouse || "N/A",
+        warehouseName: apiData.data.warehouse_name || "N/A", // From joined warehouse table
         expectedDate: apiData.data.expected_date,
         approvedBy: apiData.data.approved_by || "-",
         approvedOn: apiData.data.approved_on || "-",
-        status: apiData.data.approval_status,
+        status: apiData.data.approval_status?.toLowerCase() || "pending",
         aggregateStatus: apiData.data.approval_status,
         projectName: apiData.data.association_type || "N/A",
         noOfItems: apiData.data.items.length,
         comment: apiData.data.comment,
         items: apiData.data.items.map((item: any) => ({
-          hsnCode: item.hsn_code,
+          hsnCode: item.hsn_code || 'N/A', // From joined item table
           itemCode: item.item_code,
           itemName: item.item_name,
-          uom: item.uom_name,
+          uom: item.uom_name || 'N/A', // From joined UOM table
           requiredQty: parseFloat(item.required_quantity),
         })),
       };
@@ -167,20 +166,20 @@ const IndentManagement: React.FC = () => {
         indentNumber: apiData.data.indent_number,
         createdBy: apiData.data.created_by,
         requestedOn: apiData.data.request_date,
-        warehouseName: apiData.data.recieving_warehouse || "N/A",
+        warehouseName: apiData.data.warehouse_name || "N/A", // From joined warehouse table
         expectedDate: apiData.data.expected_date,
         approvedBy: apiData.data.approved_by || "-",
         approvedOn: apiData.data.approved_on || "-",
-        status: apiData.data.status,
+        status: apiData.data.approval_status?.toLowerCase() || "pending",
         aggregateStatus: apiData.data.approval_status,
         projectName: apiData.data.association_type || "N/A",
         noOfItems: apiData.data.items.length,
         comment: apiData.data.comment,
         items: apiData.data.items.map((item: any) => ({
-          hsnCode: item.hsn_code,
+          hsnCode: item.hsn_code || 'N/A', // From joined item table
           itemCode: item.item_code,
           itemName: item.item_name,
-          uom: item.uom_name,
+          uom: item.uom_name || 'N/A', // From joined UOM table
           requiredQty: parseFloat(item.required_quantity),
         })),
       };

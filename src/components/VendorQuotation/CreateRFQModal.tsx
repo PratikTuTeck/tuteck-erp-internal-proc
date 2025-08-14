@@ -55,8 +55,8 @@ const CreateRFQModal: React.FC<CreateRFQModalProps> = ({ isOpen, onClose }) => {
       const response = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/indent?approval_status=APPROVED`);
       if (response.data?.data) {
         const mappedIndents = response.data.data.map((indent: any) => ({
-          id: indent.indent_id,
-          name: `${indent.indent_number} - ${indent.project_name || 'Project'}`
+          id: indent.id,
+          name: `${indent.indent_number} - ${indent.association_type || 'Project'}`
         }));
         setIndents(mappedIndents);
       }
@@ -70,7 +70,7 @@ const CreateRFQModal: React.FC<CreateRFQModalProps> = ({ isOpen, onClose }) => {
       const response = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/warehouse`);
       if (response.data?.data) {
         const mappedWarehouses = response.data.data.map((warehouse: any) => ({
-          id: warehouse.warehouse_id,
+          id: warehouse.id,
           name: warehouse.warehouse_name
         }));
         setWarehouses(mappedWarehouses);
@@ -194,14 +194,14 @@ const CreateRFQModal: React.FC<CreateRFQModalProps> = ({ isOpen, onClose }) => {
     setLoading(true);
     try {
       const payload = {
+        rfq_date: formData.rfqDate,
+        rfq_end_date: formData.endDate,
+        note: formData.description,
         indent_ids: selectedIndents,
         warehouse_ids: selectedWarehouses,
-        rfq_date: formData.rfqDate,
-        end_date: formData.endDate,
-        description: formData.description,
-        items: aggregatedItems.map(item => ({
-          item_id: item.itemCode, // This should be the actual item ID
-          selected_vendor_ids: item.selectedVendors
+        vendor_items: aggregatedItems.map(item => ({
+          item_id: item.itemCode,
+          vendor_ids: item.selectedVendors
         }))
       };
 

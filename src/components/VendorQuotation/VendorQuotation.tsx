@@ -63,12 +63,12 @@ const VendorQuotation: React.FC = () => {
       const response = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/rfq`);
       if (response.data?.data) {
         const mappedRFQs = response.data.data.map((rfq: any) => ({
-          id: rfq.rfq_id,
+          id: rfq.id,
           rfqNo: rfq.rfq_number,
-          deliveryLocation: rfq.delivery_location || 'N/A',
-          vendorOptions: rfq.vendor_options || [],
+          deliveryLocation: 'N/A', // Will be fetched from warehouse relation
+          vendorOptions: [], // Will be fetched from rfq_vendor relation
           rfqDate: rfq.rfq_date ? new Date(rfq.rfq_date).toISOString().split('T')[0] : '',
-          endDate: rfq.end_date ? new Date(rfq.end_date).toISOString().split('T')[0] : '',
+          endDate: rfq.rfq_end_date ? new Date(rfq.rfq_end_date).toISOString().split('T')[0] : '',
           approvedBy: rfq.approved_by || '',
           approvedOn: rfq.approved_on ? new Date(rfq.approved_on).toISOString().split('T')[0] : '',
           status: rfq.approval_status?.toLowerCase() || 'pending'
@@ -90,12 +90,12 @@ const VendorQuotation: React.FC = () => {
       const response = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/vendor-quotation`);
       if (response.data?.data) {
         const mappedQuotations = response.data.data.map((quotation: any) => ({
-          id: quotation.quotation_id,
-          quotationNo: quotation.quotation_number,
-          rfqNo: quotation.rfq_number,
-          requestedBy: quotation.requested_by || 'System',
-          requestedOn: quotation.requested_on ? new Date(quotation.requested_on).toISOString().split('T')[0] : '',
-          vendor: quotation.vendor_name,
+          id: quotation.id,
+          quotationNo: `VQ-${quotation.id.slice(0, 8)}`, // Generate display number
+          rfqNo: quotation.rfq_number || 'N/A', // From joined RFQ table
+          requestedBy: quotation.created_by || 'System',
+          requestedOn: quotation.created_at ? new Date(quotation.created_at).toISOString().split('T')[0] : '',
+          vendor: quotation.vendor_name || 'N/A', // From joined vendor table
           approvedBy: quotation.approved_by || '',
           approvedOn: quotation.approved_on ? new Date(quotation.approved_on).toISOString().split('T')[0] : '',
           status: quotation.approval_status?.toLowerCase() || 'pending'
@@ -133,12 +133,12 @@ const VendorQuotation: React.FC = () => {
     try {
       const response = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/rfq/${rfq.id}`);
       if (response.data?.data) {
-        // Map the detailed RFQ data and show in view modal
         setSelectedRFQ({
           ...rfq,
-          // Add any additional details from the API response
+          deliveryLocation: response.data.data.warehouse_names?.join(', ') || 'N/A',
+          vendorOptions: response.data.data.vendor_names || []
         });
-        // You can create a ViewRFQModal similar to ViewIndentModal
+        // TODO: Create ViewRFQModal component
       }
     } catch (err) {
       console.error('Error fetching RFQ details:', err);

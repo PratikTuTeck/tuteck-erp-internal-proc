@@ -52,7 +52,7 @@ const ApproveRFQModal: React.FC<ApproveRFQModalProps> = ({ isOpen, onClose, rfq 
     setLoading(true);
     try {
       const response = await axios.post(`${import.meta.env.VITE_API_BASE_URL}/rfq/decision/${rfq.id}`, {
-        decision: 'APPROVED',
+        approval_status: 'APPROVED',
         comment: comment
       });
       
@@ -74,7 +74,7 @@ const ApproveRFQModal: React.FC<ApproveRFQModalProps> = ({ isOpen, onClose, rfq 
     setLoading(true);
     try {
       const response = await axios.post(`${import.meta.env.VITE_API_BASE_URL}/rfq/decision/${rfq.id}`, {
-        decision: 'REJECTED',
+        approval_status: 'REJECTED',
         comment: comment
       });
       

@@ -100,8 +100,8 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
       const response = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/rfq?approval_status=APPROVED`);
       if (response.data?.data) {
         const mappedRFQs = response.data.data.map((rfq: any) => ({
-          id: rfq.rfq_id,
-          name: `${rfq.rfq_number} - ${rfq.description || 'RFQ'}`
+          id: rfq.id,
+          name: `${rfq.rfq_number} - ${rfq.note || 'RFQ'}`
         }));
         setRfqs(mappedRFQs);
       }
@@ -115,8 +115,8 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
       const response = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/indent?approval_status=APPROVED`);
       if (response.data?.data) {
         const mappedIndents = response.data.data.map((indent: any) => ({
-          id: indent.indent_id,
-          name: `${indent.indent_number} - ${indent.project_name || 'Project'}`
+          id: indent.id,
+          name: `${indent.indent_number} - ${indent.association_type || 'Project'}`
         }));
         setIndents(mappedIndents);
       }
@@ -127,12 +127,12 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
 
   const fetchRFQVendors = async (rfqId: string) => {
     try {
-      const response = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/rfq_vendor?rfq_id=${rfqId}`);
+      const response = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/rfq-vendor?rfq_id=${rfqId}`);
       if (response.data?.data) {
         const mappedVendors = response.data.data.map((vendor: any) => ({
-          id: vendor.vendor_id,
+          id: vendor.id,
           name: vendor.vendor_name,
-          address: vendor.vendor_address || ''
+          address: vendor.vendor_address || '' // From joined vendor table
         }));
         setVendors(mappedVendors);
       }
@@ -143,12 +143,12 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
 
   const fetchApprovedVendors = async () => {
     try {
-      const response = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/vendor?approval_status=APPROVED`);
+      const response = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/vendors?approval_status=APPROVED`);
       if (response.data?.data) {
         const mappedVendors = response.data.data.map((vendor: any) => ({
-          id: vendor.vendor_id,
+          id: vendor.id,
           name: vendor.vendor_name,
-          address: vendor.vendor_address || ''
+          address: vendor.address || ''
         }));
         setVendors(mappedVendors);
       }
@@ -162,7 +162,7 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
       const response = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/warehouse`);
       if (response.data?.data) {
         const mappedWarehouses = response.data.data.map((warehouse: any) => ({
-          id: warehouse.warehouse_id,
+          id: warehouse.id,
           name: warehouse.warehouse_name
         }));
         setWarehouses(mappedWarehouses);
@@ -268,29 +268,17 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
     setLoading(true);
     try {
       const payload = {
-        po_origin_type: sourceType.toUpperCase(),
+        po_origin_type: sourceType === 'quotation' ? 'RFQ' : 'INDENT',
         po_origin_id: sourceType === 'quotation' ? formData.selectedRFQ : formData.selectedIndent,
         po_date: formData.poDate,
         vendor_id: formData.selectedVendor,
-        warehouse_ids: formData.selectedWarehouses,
-        vendor_address: formData.vendorAddress,
-        vendor_bank_name: formData.bankName,
-        vendor_gst: formData.gstNo,
-        vendor_account_no: formData.accountNo,
-        vendor_ifsc_code: formData.ifscCode,
-        igst_rate: formData.igst,
-        sgst_rate: formData.sgst,
-        cgst_rate: formData.cgst,
-        payment_terms: paymentTerms.map(term => ({
-          terms: term.terms,
-          amount: term.amount,
-          reason: term.reason
-        })),
-        items: items.map(item => ({
-          item_code: item.itemCode,
-          quantity: item.quantity,
-          rate: item.rate
-        })),
+        bank_name: formData.bankName,
+        gst: formData.gstNo,
+        account_no: formData.accountNo,
+        ifsc_code: formData.ifscCode,
+        igst: formData.igst.toString(),
+        sgst: formData.sgst.toString(),
+        cgst: formData.cgst.toString(),
         total_amount: totalAmount
       };
 

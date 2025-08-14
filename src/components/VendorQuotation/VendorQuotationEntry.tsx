@@ -96,18 +96,17 @@ const VendorQuotationEntry: React.FC<VendorQuotationEntryProps> = ({
 
   const fetchRFQDetails = async () => {
     try {
-      const response = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/rfq-details?rfq_id=${selectedRFQ}`);
+      const response = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/rfq/${selectedRFQ}`);
       if (response.data?.data) {
         setRfqDetails(response.data.data);
-        // Update quotation items based on RFQ details
         if (response.data.data.items) {
           const mappedItems = response.data.data.items.map((item: any, index: number) => ({
             slNo: index + 1,
             itemCode: item.item_code,
             itemName: item.item_name,
             uom: item.uom,
-            procureQty: item.required_quantity,
-            canProvideQty: item.required_quantity,
+            procureQty: item.required_quantity || 0,
+            canProvideQty: item.required_quantity || 0,
             rate: 0,
             isEditing: false
           }));
@@ -124,7 +123,7 @@ const VendorQuotationEntry: React.FC<VendorQuotationEntryProps> = ({
       const response = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/vendors?approval_status=APPROVED`);
       if (response.data?.data) {
         const mappedVendors = response.data.data.map((vendor: any) => ({
-          id: vendor.vendor_id,
+          id: vendor.id,
           name: vendor.vendor_name
         }));
         setVendors(mappedVendors);
@@ -191,29 +190,29 @@ const VendorQuotationEntry: React.FC<VendorQuotationEntryProps> = ({
       const payload = {
         rfq_id: formData.rfq,
         vendor_id: formData.vendor,
-        entry_date: formData.entryDate,
-        time_of_delivery: formData.timeOfDelivery,
+        quotation_sent_date: formData.entryDate,
+        delivery_date: formData.timeOfDelivery,
         response_time: formData.responseTime,
-        price_validity: formData.priceValidity,
+        price_validity_days: formData.priceValidity,
         delivery_period: formData.deliveryPeriod,
-        services: {
-          packaging: formData.packaging,
-          freight: formData.freight,
-          loading: formData.loading,
-          unloading: formData.unloading,
-          warranty: formData.warranty
-        },
+        is_packaging_included: formData.packaging,
+        is_freight_included: formData.freight,
+        is_loading_included: formData.loading,
+        is_unloading_included: formData.unloading,
+        is_insurance_included: formData.warranty,
         comment: formData.comment,
-        payment_milestones: paymentMilestones.map(milestone => ({
-          type: milestone.type,
-          payment_type: milestone.paymentType,
-          amount: milestone.amount,
-          reason: milestone.reason
+        note: formData.comment,
+        payment_terms: paymentMilestones.map(milestone => ({
+          quotation_payment_terms_type: milestone.type,
+          charges_amount: milestone.paymentType === 'Amount' ? parseFloat(milestone.amount) : 0,
+          charges_percent: milestone.paymentType === '%' ? parseFloat(milestone.amount.replace('%', '')) : 0,
+          note: milestone.reason
         })),
-        items: quotationItems.map(item => ({
-          item_code: item.itemCode,
-          can_provide_qty: item.canProvideQty,
-          rate: item.rate
+        quotation_details: quotationItems.map(item => ({
+          item_id: item.itemCode, // This should be actual item ID
+          vendor_qty: item.canProvideQty,
+          rate: item.rate,
+          qty: item.procureQty
         }))
       };
 

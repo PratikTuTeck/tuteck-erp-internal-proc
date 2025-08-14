@@ -50,12 +50,16 @@ const ApproveIndentModal: React.FC<ApproveIndentModalProps> = ({
       const response = await fetch(
         `${import.meta.env.VITE_API_BASE_URL}/indent/${
           indent.id
-        }/decision?status=approved`,
+        }/decision`,
         {
-          method: "PATCH",
+          method: "POST",
           headers: {
             "Content-Type": "application/json",
           },
+          body: JSON.stringify({
+            approval_status: "APPROVED",
+            comment: approvalComment
+          })
         }
       );
 
@@ -81,12 +85,16 @@ const ApproveIndentModal: React.FC<ApproveIndentModalProps> = ({
       const response = await fetch(
         `${import.meta.env.VITE_API_BASE_URL}/indent/${
           indent.id
-        }/decision?status=rejected`,
+        }/decision`,
         {
-          method: "PATCH",
+          method: "POST",
           headers: {
             "Content-Type": "application/json",
           },
+          body: JSON.stringify({
+            approval_status: "REJECTED",
+            comment: approvalComment
+          })
         }
       );
 

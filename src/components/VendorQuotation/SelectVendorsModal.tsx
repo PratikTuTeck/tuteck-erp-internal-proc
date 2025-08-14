@@ -40,8 +40,8 @@ const SelectVendorsModal: React.FC<SelectVendorsModalProps> = ({
       const response = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/vendors?approval_status=APPROVED`);
       if (response.data?.data) {
         const mappedVendors = response.data.data.map((vendor: any) => ({
-          id: vendor.vendor_id,
-          vendorId: vendor.vendor_code || vendor.vendor_id,
+          id: vendor.id,
+          vendorId: vendor.vendor_code || vendor.id,
           vendorName: vendor.vendor_name,
           contactNumber: vendor.contact_number || 'N/A'
         }));

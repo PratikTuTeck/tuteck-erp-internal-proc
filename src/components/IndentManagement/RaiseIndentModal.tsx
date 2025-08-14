@@ -45,7 +45,7 @@ const RaiseIndentModal: React.FC<RaiseIndentModalProps> = ({
       setLoadingBOMs(true);
       setBOMError("");
       axios
-        .get(`${import.meta.env.VITE_API_BASE_URL}/indent/bom/details`)
+        .get(`${import.meta.env.VITE_API_BASE_URL}/bom`)
         .then((res) => {
           // Ensure boms is always an array
           setBOMs(Array.isArray(res.data.data) ? res.data.data : []);
@@ -101,14 +101,14 @@ const RaiseIndentModal: React.FC<RaiseIndentModalProps> = ({
       // First API call - Create indent
       const indentData = {
         indent_number: formData.indentId,
-        recieving_warehouse: null, // Add if needed
+        recieving_warehouse: null,
         request_date: formData.requestDate,
         expected_date: formData.expectedDate,
         comment: formData.comment,
         status: "PENDING",
-        association_id: selectedBOMData?.lead_id || null,
+        association_id: selectedBOMData?.association_id || null,
         association_type:
-          selectedBOMData?.bom_type === "CRM" ? "Lead" : "Warehouse",
+          selectedBOMData?.association_type || "Warehouse",
         approval_status: "PENDING",
         approved_by: null,
         approved_on: null,
@@ -125,15 +125,15 @@ const RaiseIndentModal: React.FC<RaiseIndentModalProps> = ({
         // Second API call - Create indent details
         const indentDetails = selectedItems.map((item) => ({
           indent_id: indentId,
-          item_id: item.itemId, // Assuming itemId is available in SelectedItem
-          required_quantity: item.procureQty, // Use procure quantity as the final required quantity
+          item_id: item.itemId,
+          required_quantity: item.procureQty,
           approval_status: "PENDING",
           approved_by: null,
           approved_on: null,
         }));
 
         const detailsResponse = await axios.post(
-          `${import.meta.env.VITE_API_BASE_URL}/indent-details/bulk`,
+          `${import.meta.env.VITE_API_BASE_URL}/indent-details`,
           indentDetails
         );
 

@@ -69,33 +69,33 @@ const POManagement: React.FC = () => {
     setLoading(true);
     setError('');
     try {
-      const response = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/po?approval_status=APPROVED`);
+      const response = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/po`);
       if (response.data?.data) {
         const mappedPOs = response.data.data.map((po: any) => ({
-          id: po.po_id,
+          id: po.id,
           poNo: po.po_number,
-          parentPO: po.parent_po_number,
-          vendorName: po.vendor_name,
-          contactNo: po.vendor_contact,
+          parentPO: po.reference_purchase_id ? `PO-REF-${po.reference_purchase_id.slice(0, 8)}` : undefined,
+          vendorName: po.vendor_name || 'N/A', // From joined vendor table
+          contactNo: po.vendor_contact || 'N/A', // From joined vendor table
           poDate: po.po_date ? new Date(po.po_date).toISOString().split('T')[0] : '',
-          poAmount: po.po_amount || 0,
+          poAmount: po.total_amount || 0,
           approvedBy: po.approved_by || '',
           approvedOn: po.approved_on ? new Date(po.approved_on).toISOString().split('T')[0] : '',
-          status: po.approval_status || 'PENDING',
-          type: po.po_origin_type || 'Quotation',
-          vendorAddress: po.vendor_address || '',
-          warehouseName: po.warehouse_name || '',
-          gstNo: po.vendor_gst || '',
+          status: po.po_status || 'PENDING',
+          type: po.po_origin_type === 'RFQ' ? 'Quotation' : 'Indent',
+          vendorAddress: po.vendor_address || 'N/A', // From joined vendor table
+          warehouseName: po.warehouse_names?.join(', ') || 'N/A', // From joined warehouse table
+          gstNo: po.gst || '',
           items: po.items || [],
           vendorDetails: {
-            bankName: po.vendor_bank_name || '',
-            accountNo: po.vendor_account_no || '',
-            ifscCode: po.vendor_ifsc_code || '',
-            igst: po.igst_rate || 0,
-            sgst: po.sgst_rate || 0,
-            cgst: po.cgst_rate || 0
+            bankName: po.bank_name || '',
+            accountNo: po.account_no || '',
+            ifscCode: po.ifsc_code || '',
+            igst: parseFloat(po.igst) || 0,
+            sgst: parseFloat(po.sgst) || 0,
+            cgst: parseFloat(po.cgst) || 0
           },
-          paymentTerms: po.payment_terms || []
+          paymentTerms: po.payment_terms || [] // This would come from a separate payment terms table
         }));
         setPurchaseOrders(mappedPOs);
       }
@@ -131,12 +131,17 @@ const POManagement: React.FC = () => {
     try {
       const response = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/po/${po.id}`);
       if (response.data?.data) {
-        // Map the detailed PO data
         const detailedPO = {
           ...po,
-          // Add any additional details from the API response
           items: response.data.data.items || po.items,
-          vendorDetails: response.data.data.vendor_details || po.vendorDetails,
+          vendorDetails: {
+            bankName: response.data.data.bank_name || po.vendorDetails.bankName,
+            accountNo: response.data.data.account_no || po.vendorDetails.accountNo,
+            ifscCode: response.data.data.ifsc_code || po.vendorDetails.ifscCode,
+            igst: parseFloat(response.data.data.igst) || po.vendorDetails.igst,
+            sgst: parseFloat(response.data.data.sgst) || po.vendorDetails.sgst,
+            cgst: parseFloat(response.data.data.cgst) || po.vendorDetails.cgst
+          },
           paymentTerms: response.data.data.payment_terms || po.paymentTerms
         };
         setSelectedPO(detailedPO);
