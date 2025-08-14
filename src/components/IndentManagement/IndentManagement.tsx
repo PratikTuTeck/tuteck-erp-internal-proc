@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Plus, Search, Eye, Edit, CheckCircle } from "lucide-react";
 import axios from "axios";
+
 import RaiseIndentModal from "./RaiseIndentModal";
 import ViewIndentModal from "./ViewIndentModal";
 import ApproveIndentModal from "./ApproveIndentModal";
@@ -96,7 +97,7 @@ const IndentManagement: React.FC = () => {
     fetchIndents();
   };
 
-  // Mock data for fallback (can be removed once API is integrated)
+
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -111,9 +112,45 @@ const IndentManagement: React.FC = () => {
     }
   };
 
-  const handleViewIndent = (indent: Indent) => {
-    setSelectedIndent(indent);
-    setShowViewModal(true);
+  const handleViewIndent = async (id: string) => {
+    try {
+      const response = await fetch(
+        `${import.meta.env.VITE_API_BASE_URL}/indents/${id}`
+      );
+      if (!response.ok) {
+        throw new Error("Failed to fetch indent details");
+      }
+
+      const apiData = await response.json();
+      const mappedIndent = {
+        id: apiData.data.id,
+        indentNumber: apiData.data.indent_number,
+        createdBy: apiData.data.created_by,
+        requestedOn: apiData.data.request_date,
+        warehouseName: apiData.data.recieving_warehouse || "N/A",
+        expectedDate: apiData.data.expected_date,
+        approvedBy: apiData.data.approved_by || "-",
+        approvedOn: apiData.data.approved_on || "-",
+        status: apiData.data.status,
+        aggregateStatus: apiData.data.approval_status,
+        projectName: apiData.data.association_type || "N/A",
+        noOfItems: apiData.data.items.length,
+        comment: apiData.data.comment,
+        items: apiData.data.items.map((item: any) => ({
+          hsnCode: item.hsn_code,
+          itemCode: item.item_code,
+          itemName: item.item_name,
+          uom: item.uom_name,
+          requiredQty: parseFloat(item.required_quantity),
+        })),
+      };
+
+      setSelectedIndent(mappedIndent);
+      setShowViewModal(true);
+    } catch (error) {
+      console.error("Error fetching indent details:", error);
+      alert("Failed to fetch indent details. Please try again later.");
+    }
   };
 
   const handleApproveIndent = (indent: Indent) => {
@@ -248,6 +285,7 @@ const IndentManagement: React.FC = () => {
                           onClick={() => handleViewIndent(indent)}
                           className="p-1 text-blue-600 hover:text-blue-800 transition-colors"
                           title="View"
+
                         >
                           <Eye className="w-4 h-4" />
                         </button>
@@ -274,6 +312,7 @@ const IndentManagement: React.FC = () => {
             </table>
           </div>
         )}
+
       </div>
 
       {/* Modals */}
