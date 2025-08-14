@@ -1,5 +1,7 @@
-import React, { useState } from "react";
-import { Plus, Search, Eye, Edit, CheckCircle, FileText } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import { Plus, Search, Eye, Edit, CheckCircle } from "lucide-react";
+import axios from "axios";
+
 import RaiseIndentModal from "./RaiseIndentModal";
 import ViewIndentModal from "./ViewIndentModal";
 import ApproveIndentModal from "./ApproveIndentModal";
@@ -14,7 +16,7 @@ interface Indent {
   approvedBy: string;
   approvedOn: string;
   status: "pending" | "approved" | "rejected";
-  aggregateStatus: string; // Added this property
+  aggregateStatus?: string;
   projectName: string;
   noOfItems: number;
   comment: string;
@@ -33,102 +35,69 @@ const IndentManagement: React.FC = () => {
   const [showApproveModal, setShowApproveModal] = useState(false);
   const [selectedIndent, setSelectedIndent] = useState<Indent | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
+  const [indents, setIndents] = useState<Indent[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
-  const indents: Indent[] = [
-    {
-      id: "1",
-      indentNumber: "IND-001",
-      createdBy: "John Doe",
-      requestedOn: "2024-07-10",
-      warehouseName: "Warehouse A",
-      expectedDate: "2024-07-20",
-      approvedBy: "Jane Doe",
-      approvedOn: "2024-07-12",
-      status: "approved",
-      projectName: "Project Alpha",
-      noOfItems: 3,
-      comment: "Urgent requirement for construction",
-      items: [
-        {
-          hsnCode: "7215",
-          itemCode: "ITM-001",
-          itemName: "Steel Rod",
-          uom: "Kg",
-          requiredQty: 100,
-        },
-        {
-          hsnCode: "7216",
-          itemCode: "ITM-002",
-          itemName: "Steel Plate",
-          uom: "Kg",
-          requiredQty: 50,
-        },
-        {
-          hsnCode: "7217",
-          itemCode: "ITM-003",
-          itemName: "Steel Wire",
-          uom: "Meter",
-          requiredQty: 200,
-        },
-      ],
-      aggregateStatus: "partially_approved",
-    },
-    {
-      id: "2",
-      indentNumber: "IND-002",
-      createdBy: "Alice Smith",
-      requestedOn: "2024-07-11",
-      warehouseName: "Warehouse B",
-      expectedDate: "2024-07-25",
-      approvedBy: "Bob Wilson",
-      approvedOn: "2024-07-13",
-      status: "approved",
-      projectName: "Project Beta",
-      noOfItems: 2,
-      comment: "Regular maintenance supplies",
-      items: [
-        {
-          hsnCode: "8301",
-          itemCode: "ITM-004",
-          itemName: "Bolt M12",
-          uom: "Piece",
-          requiredQty: 500,
-        },
-        {
-          hsnCode: "8302",
-          itemCode: "ITM-005",
-          itemName: "Nut M12",
-          uom: "Piece",
-          requiredQty: 500,
-        },
-      ],
-      aggregateStatus: "approved",
-    },
-    {
-      id: "3",
-      indentNumber: "IND-003",
-      createdBy: "Mike Johnson",
-      requestedOn: "2024-07-12",
-      warehouseName: "Warehouse C",
-      expectedDate: "2024-07-30",
-      approvedBy: "",
-      approvedOn: "",
-      status: "pending",
-      projectName: "Project Gamma",
-      noOfItems: 1,
-      comment: "New project requirement",
-      items: [
-        {
-          hsnCode: "3901",
-          itemCode: "ITM-006",
-          itemName: "PVC Pipe",
-          uom: "Meter",
-          requiredQty: 100,
-        },
-      ],
-      aggregateStatus: "pending",
-    },
-  ];
+  // Fetch indents when component mounts
+  useEffect(() => {
+    fetchIndents();
+  }, []);
+
+  const fetchIndents = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const response = await axios.get(
+        `${import.meta.env.VITE_API_BASE_URL}/indent`
+      );
+      if (response.data.success) {
+        // Transform API response to match UI interface
+        const transformedIndents = (response.data.data || []).map(
+          (apiIndent: any) => ({
+            id: apiIndent.id,
+            indentNumber: apiIndent.indent_number,
+            createdBy: apiIndent.created_by || "System", // Default if not provided
+            requestedOn: apiIndent.request_date
+              ? new Date(apiIndent.request_date).toISOString().split("T")[0]
+              : "",
+            warehouseName: apiIndent.recieving_warehouse || "N/A",
+            expectedDate: apiIndent.expected_date
+              ? new Date(apiIndent.expected_date).toISOString().split("T")[0]
+              : "",
+            approvedBy: apiIndent.approved_by || "",
+            approvedOn: apiIndent.approved_on
+              ? new Date(apiIndent.approved_on).toISOString().split("T")[0]
+              : "",
+            status: apiIndent.status?.toLowerCase() || "pending",
+            aggregateStatus: apiIndent.approval_status || "PENDING",
+            projectName:
+              apiIndent.association_type === "Lead"
+                ? "Lead Project"
+                : "Warehouse Project", // Default project name
+            noOfItems: 0, // This would need to come from indent details API
+            comment: apiIndent.comment || "",
+            items: [], // This would need to come from indent details API
+          })
+        );
+        setIndents(transformedIndents);
+      } else {
+        setError("Failed to fetch indents");
+      }
+    } catch (err) {
+      console.error("Error fetching indents:", err);
+      setError("Error fetching indents");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleIndentCreated = () => {
+    // Refresh indents after creating a new one
+    fetchIndents();
+  };
+
+
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -191,10 +160,11 @@ const IndentManagement: React.FC = () => {
 
   const filteredIndents = indents.filter(
     (indent) =>
-      indent.indentNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      indent.warehouseName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      indent.status.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      indent.createdBy.toLowerCase().includes(searchTerm.toLowerCase())
+      (indent.indentNumber || "")
+        .toLowerCase()
+        .includes(searchTerm.toLowerCase()) ||
+      (indent.status || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (indent.createdBy || "").toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   return (
@@ -221,7 +191,7 @@ const IndentManagement: React.FC = () => {
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
             <input
               type="text"
-              placeholder="Search Indents by number, warehouse, status..."
+              placeholder="Search Indents by number, status, created by..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-10 pr-4 py-2 w-80 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -229,114 +199,120 @@ const IndentManagement: React.FC = () => {
           </div>
         </div>
 
+        {/* Loading State */}
+        {loading && (
+          <div className="flex justify-center items-center py-8">
+            <div className="text-gray-600">Loading indents...</div>
+          </div>
+        )}
+
+        {/* Error State */}
+        {error && !loading && (
+          <div className="flex justify-center items-center py-8">
+            <div className="text-red-600">{error}</div>
+          </div>
+        )}
+
         {/* Indent List Table */}
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-gray-50 border-b border-gray-200">
-              <tr>
-                <th className="text-left py-3 px-4 font-medium text-gray-900">
-                  Indent Number
-                </th>
-                <th className="text-left py-3 px-4 font-medium text-gray-900">
-                  Created By
-                </th>
-                <th className="text-left py-3 px-4 font-medium text-gray-900">
-                  Requested On
-                </th>
-                <th className="text-left py-3 px-4 font-medium text-gray-900">
-                  Warehouse Name
-                </th>
-                <th className="text-left py-3 px-4 font-medium text-gray-900">
-                  Expected Date
-                </th>
-                <th className="text-left py-3 px-4 font-medium text-gray-900">
-                  Approved By
-                </th>
-                <th className="text-left py-3 px-4 font-medium text-gray-900">
-                  Approved On
-                </th>
-                <th className="text-left py-3 px-4 font-medium text-gray-900">
-                  Status
-                </th>
-                <th className="text-center py-3 px-4 font-medium text-gray-900">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredIndents.map((indent) => (
-                <tr
-                  key={indent.id}
-                  className="border-b border-gray-200 hover:bg-gray-50"
-                >
-                  <td className="py-4 px-4 font-medium text-gray-900">
-                    {indent.indentNumber}
-                  </td>
-                  <td className="py-4 px-4 text-gray-600">
-                    {indent.createdBy}
-                  </td>
-                  <td className="py-4 px-4 text-gray-600">
-                    {indent.requestedOn}
-                  </td>
-                  <td className="py-4 px-4 text-gray-600">
-                    {indent.warehouseName}
-                  </td>
-                  <td className="py-4 px-4 text-gray-600">
-                    {indent.expectedDate}
-                  </td>
-                  <td className="py-4 px-4 text-gray-600">
-                    {indent.approvedBy || "-"}
-                  </td>
-                  <td className="py-4 px-4 text-gray-600">
-                    {indent.approvedOn || "-"}
-                  </td>
-                  <td className="py-4 px-4">
-                    <span
-                      className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(
-                        indent.status
-                      )}`}
-                    >
-                      {indent.status.charAt(0).toUpperCase() +
-                        indent.status.slice(1)}
-                    </span>
-                  </td>
-                  <td className="py-4 px-4">
-                    <div className="flex items-center justify-center space-x-2">
-                      <button
-                        onClick={() => handleViewIndent(indent.id)}
-                        className="p-1 text-blue-600 hover:text-blue-800 transition-colors"
-                        title="View"
-                      >
-                        <Eye className="w-4 h-4" />
-                      </button>
-                      <button
-                        className="p-1 text-gray-600 hover:text-gray-800 transition-colors"
-                        title="Edit"
-                      >
-                        <Edit className="w-4 h-4" />
-                      </button>
-                      {indent.status === "pending" && (
-                        <button
-                          onClick={() => handleApproveIndent(indent)}
-                          className="p-1 text-green-600 hover:text-green-800 transition-colors"
-                          title="Approve"
-                        >
-                          <CheckCircle className="w-4 h-4" />
-                        </button>
-                      )}
-                      {/* <button 
-                        className="p-1 text-purple-600 hover:text-purple-800 transition-colors"
-                        title="RFQ"
-                      >
-                        <FileText className="w-4 h-4" />
-                      </button> */}
-                    </div>
-                  </td>
+        {!loading && !error && (
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gray-50 border-b border-gray-200">
+                <tr>
+                  <th className="text-left py-3 px-4 font-medium text-gray-900">
+                    Indent Number
+                  </th>
+                  <th className="text-left py-3 px-4 font-medium text-gray-900">
+                    Created By
+                  </th>
+                  <th className="text-left py-3 px-4 font-medium text-gray-900">
+                    Requested On
+                  </th>
+                  <th className="text-left py-3 px-4 font-medium text-gray-900">
+                    Expected Date
+                  </th>
+                  <th className="text-left py-3 px-4 font-medium text-gray-900">
+                    Approved By
+                  </th>
+                  <th className="text-left py-3 px-4 font-medium text-gray-900">
+                    Approved On
+                  </th>
+                  <th className="text-left py-3 px-4 font-medium text-gray-900">
+                    Status
+                  </th>
+                  <th className="text-center py-3 px-4 font-medium text-gray-900">
+                    Actions
+                  </th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {filteredIndents.map((indent) => (
+                  <tr
+                    key={indent.id}
+                    className="border-b border-gray-200 hover:bg-gray-50"
+                  >
+                    <td className="py-4 px-4 font-medium text-gray-900">
+                      {indent.indentNumber}
+                    </td>
+                    <td className="py-4 px-4 text-gray-600">
+                      {indent.createdBy}
+                    </td>
+                    <td className="py-4 px-4 text-gray-600">
+                      {indent.requestedOn}
+                    </td>
+                    <td className="py-4 px-4 text-gray-600">
+                      {indent.expectedDate}
+                    </td>
+                    <td className="py-4 px-4 text-gray-600">
+                      {indent.approvedBy || "-"}
+                    </td>
+                    <td className="py-4 px-4 text-gray-600">
+                      {indent.approvedOn || "-"}
+                    </td>
+                    <td className="py-4 px-4">
+                      <span
+                        className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(
+                          indent.status
+                        )}`}
+                      >
+                        {indent.status.charAt(0).toUpperCase() +
+                          indent.status.slice(1)}
+                      </span>
+                    </td>
+                    <td className="py-4 px-4">
+                      <div className="flex items-center justify-center space-x-2">
+                        <button
+                          onClick={() => handleViewIndent(indent)}
+                          className="p-1 text-blue-600 hover:text-blue-800 transition-colors"
+                          title="View"
+
+                        >
+                          <Eye className="w-4 h-4" />
+                        </button>
+                        <button
+                          className="p-1 text-gray-600 hover:text-gray-800 transition-colors"
+                          title="Edit"
+                        >
+                          <Edit className="w-4 h-4" />
+                        </button>
+                        {indent.status === "pending" && (
+                          <button
+                            onClick={() => handleApproveIndent(indent)}
+                            className="p-1 text-green-600 hover:text-green-800 transition-colors"
+                            title="Approve"
+                          >
+                            <CheckCircle className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
       </div>
 
       {/* Modals */}
@@ -344,6 +320,7 @@ const IndentManagement: React.FC = () => {
         <RaiseIndentModal
           isOpen={showRaiseModal}
           onClose={() => setShowRaiseModal(false)}
+          onIndentCreated={handleIndentCreated}
         />
       )}
 
@@ -354,7 +331,10 @@ const IndentManagement: React.FC = () => {
             setShowViewModal(false);
             setSelectedIndent(null);
           }}
-          indent={selectedIndent}
+          indent={{
+            ...selectedIndent,
+            aggregateStatus: selectedIndent.aggregateStatus || "N/A",
+          }}
         />
       )}
 
@@ -365,7 +345,10 @@ const IndentManagement: React.FC = () => {
             setShowApproveModal(false);
             setSelectedIndent(null);
           }}
-          indent={selectedIndent}
+          indent={{
+            ...selectedIndent,
+            aggregateStatus: selectedIndent.aggregateStatus || "N/A",
+          }}
         />
       )}
     </div>
