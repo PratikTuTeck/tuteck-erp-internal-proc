@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { X, FileText, MapPin, Calendar, Users, CheckCircle, XCircle } from 'lucide-react';
+import axios from 'axios';
 
 interface ApproveRFQModalProps {
   isOpen: boolean;
@@ -19,6 +20,7 @@ interface ApproveRFQModalProps {
 
 const ApproveRFQModal: React.FC<ApproveRFQModalProps> = ({ isOpen, onClose, rfq }) => {
   const [comment, setComment] = useState('');
+  const [loading, setLoading] = useState(false);
 
   if (!isOpen) return null;
 
@@ -46,14 +48,48 @@ const ApproveRFQModal: React.FC<ApproveRFQModalProps> = ({ isOpen, onClose, rfq 
     ]
   };
 
-  const handleApprove = () => {
-    console.log('Approving RFQ:', rfq.rfqNo, 'with comment:', comment);
-    onClose();
+  const handleApprove = async () => {
+    setLoading(true);
+    try {
+      const response = await axios.post(`${import.meta.env.VITE_API_BASE_URL}/rfq/decision/${rfq.id}`, {
+        decision: 'APPROVED',
+        comment: comment
+      });
+      
+      if (response.data.success) {
+        alert('RFQ approved successfully!');
+        onClose();
+      } else {
+        alert('Failed to approve RFQ');
+      }
+    } catch (error) {
+      console.error('Error approving RFQ:', error);
+      alert('Error approving RFQ. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleReject = () => {
-    console.log('Rejecting RFQ:', rfq.rfqNo, 'with comment:', comment);
-    onClose();
+  const handleReject = async () => {
+    setLoading(true);
+    try {
+      const response = await axios.post(`${import.meta.env.VITE_API_BASE_URL}/rfq/decision/${rfq.id}`, {
+        decision: 'REJECTED',
+        comment: comment
+      });
+      
+      if (response.data.success) {
+        alert('RFQ rejected successfully!');
+        onClose();
+      } else {
+        alert('Failed to reject RFQ');
+      }
+    } catch (error) {
+      console.error('Error rejecting RFQ:', error);
+      alert('Error rejecting RFQ. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -192,17 +228,19 @@ const ApproveRFQModal: React.FC<ApproveRFQModalProps> = ({ isOpen, onClose, rfq 
           </button>
           <button
             onClick={handleReject}
+            disabled={loading}
             className="flex items-center space-x-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
           >
             <XCircle className="w-4 h-4" />
-            <span>Reject</span>
+            <span>{loading ? 'Processing...' : 'Reject'}</span>
           </button>
           <button
             onClick={handleApprove}
+            disabled={loading}
             className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
           >
             <CheckCircle className="w-4 h-4" />
-            <span>Approve</span>
+            <span>{loading ? 'Processing...' : 'Approve'}</span>
           </button>
         </div>
       </div>

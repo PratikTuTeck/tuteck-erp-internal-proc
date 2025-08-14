@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { X, Search } from 'lucide-react';
+import { X } from 'lucide-react';
+import axios from 'axios';
 import { Select, MenuItem, Chip, FormControl, InputLabel, Box, OutlinedInput } from '@mui/material';
 import SelectVendorsModal from './SelectVendorsModal';
 
@@ -30,6 +31,9 @@ const CreateRFQModal: React.FC<CreateRFQModalProps> = ({ isOpen, onClose }) => {
   const [selectedItemIndex, setSelectedItemIndex] = useState<number | null>(null);
   const [selectedIndents, setSelectedIndents] = useState<string[]>([]);
   const [selectedWarehouses, setSelectedWarehouses] = useState<string[]>([]);
+  const [indents, setIndents] = useState<any[]>([]);
+  const [warehouses, setWarehouses] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     rfqDate: new Date().toISOString().split('T')[0],
     endDate: '',
@@ -38,19 +42,45 @@ const CreateRFQModal: React.FC<CreateRFQModalProps> = ({ isOpen, onClose }) => {
 
   const [aggregatedItems, setAggregatedItems] = useState<AggregatedItem[]>([]);
 
+  // Fetch data on component mount
+  React.useEffect(() => {
+    if (isOpen) {
+      fetchIndents();
+      fetchWarehouses();
+    }
+  }, [isOpen]);
+
+  const fetchIndents = async () => {
+    try {
+      const response = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/indent?approval_status=APPROVED`);
+      if (response.data?.data) {
+        const mappedIndents = response.data.data.map((indent: any) => ({
+          id: indent.indent_id,
+          name: `${indent.indent_number} - ${indent.project_name || 'Project'}`
+        }));
+        setIndents(mappedIndents);
+      }
+    } catch (err) {
+      console.error('Error fetching indents:', err);
+    }
+  };
+
+  const fetchWarehouses = async () => {
+    try {
+      const response = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/warehouse`);
+      if (response.data?.data) {
+        const mappedWarehouses = response.data.data.map((warehouse: any) => ({
+          id: warehouse.warehouse_id,
+          name: warehouse.warehouse_name
+        }));
+        setWarehouses(mappedWarehouses);
+      }
+    } catch (err) {
+      console.error('Error fetching warehouses:', err);
+    }
+  };
+
   if (!isOpen) return null;
-
-  const indents = [
-    { id: 'IND-001', name: 'IND-001 - Office Equipment' },
-    { id: 'IND-002', name: 'IND-002 - IT Infrastructure' },
-    { id: 'IND-003', name: 'IND-003 - Safety Equipment' }
-  ];
-
-  const warehouses = [
-    { id: 'WH-001', name: 'Warehouse A' },
-    { id: 'WH-002', name: 'Warehouse B' },
-    { id: 'WH-003', name: 'Warehouse C' }
-  ];
 
   // Mock data for indent items
   const indentItems = {
@@ -149,7 +179,7 @@ const CreateRFQModal: React.FC<CreateRFQModalProps> = ({ isOpen, onClose }) => {
     setSelectedItemIndex(null);
   };
 
-  const handleSaveRFQ = () => {
+  const handleSaveRFQ = async () => {
     if (selectedIndents.length === 0 || !formData.endDate) {
       alert('Please select at least one indent and fill all mandatory fields');
       return;
@@ -161,8 +191,34 @@ const CreateRFQModal: React.FC<CreateRFQModalProps> = ({ isOpen, onClose }) => {
       return;
     }
 
-    console.log('Saving RFQ:', { selectedIndents, selectedWarehouses, formData, aggregatedItems });
-    onClose();
+    setLoading(true);
+    try {
+      const payload = {
+        indent_ids: selectedIndents,
+        warehouse_ids: selectedWarehouses,
+        rfq_date: formData.rfqDate,
+        end_date: formData.endDate,
+        description: formData.description,
+        items: aggregatedItems.map(item => ({
+          item_id: item.itemCode, // This should be the actual item ID
+          selected_vendor_ids: item.selectedVendors
+        }))
+      };
+
+      const response = await axios.post(`${import.meta.env.VITE_API_BASE_URL}/rfq`, payload);
+      
+      if (response.data.success) {
+        alert('RFQ created successfully!');
+        onClose();
+      } else {
+        alert('Failed to create RFQ');
+      }
+    } catch (error) {
+      console.error('Error creating RFQ:', error);
+      alert('Error creating RFQ. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -379,14 +435,14 @@ const CreateRFQModal: React.FC<CreateRFQModalProps> = ({ isOpen, onClose }) => {
             </button>
             <button 
               onClick={handleSaveRFQ}
-              disabled={selectedIndents.length === 0 || !formData.endDate}
+              disabled={selectedIndents.length === 0 || !formData.endDate || loading}
               className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                selectedIndents.length > 0 && formData.endDate
+                selectedIndents.length > 0 && formData.endDate && !loading
                   ? 'bg-blue-600 text-white hover:bg-blue-700'
                   : 'bg-gray-300 text-gray-500 cursor-not-allowed'
               }`}
             >
-              Save RFQ
+              {loading ? 'Saving...' : 'Save RFQ'}
             </button>
           </div>
         </div>

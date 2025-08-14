@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { X, Search } from 'lucide-react';
+import axios from 'axios';
 
 interface SelectVendorsModalProps {
   isOpen: boolean;
@@ -23,16 +24,37 @@ const SelectVendorsModal: React.FC<SelectVendorsModalProps> = ({
 }) => {
   const [selectedVendors, setSelectedVendors] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const [vendors, setVendors] = useState<Vendor[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  // Fetch vendors on component mount
+  React.useEffect(() => {
+    if (isOpen) {
+      fetchVendors();
+    }
+  }, [isOpen]);
+
+  const fetchVendors = async () => {
+    setLoading(true);
+    try {
+      const response = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/vendors?approval_status=APPROVED`);
+      if (response.data?.data) {
+        const mappedVendors = response.data.data.map((vendor: any) => ({
+          id: vendor.vendor_id,
+          vendorId: vendor.vendor_code || vendor.vendor_id,
+          vendorName: vendor.vendor_name,
+          contactNumber: vendor.contact_number || 'N/A'
+        }));
+        setVendors(mappedVendors);
+      }
+    } catch (err) {
+      console.error('Error fetching vendors:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   if (!isOpen) return null;
-
-  const vendors: Vendor[] = [
-    { id: '1', vendorId: 'V001', vendorName: 'Vendor X', contactNumber: '9876543210' },
-    { id: '2', vendorId: 'V002', vendorName: 'Vendor Y', contactNumber: '9876543211' },
-    { id: '3', vendorId: 'V003', vendorName: 'Vendor A', contactNumber: '9876543212' },
-    { id: '4', vendorId: 'V004', vendorName: 'Vendor B', contactNumber: '9876543213' },
-    { id: '5', vendorId: 'V005', vendorName: 'Vendor C', contactNumber: '9876543214' }
-  ];
 
   const filteredVendors = vendors.filter(vendor =>
     vendor.vendorName.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -90,6 +112,11 @@ const SelectVendorsModal: React.FC<SelectVendorsModalProps> = ({
           </div>
 
           {/* Vendors Table */}
+          {loading ? (
+            <div className="flex justify-center items-center py-8">
+              <div className="text-gray-600">Loading vendors...</div>
+            </div>
+          ) : (
           <div className="overflow-x-auto">
             <table className="w-full border border-gray-200 rounded-lg">
               <thead className="bg-gray-50">
@@ -126,6 +153,7 @@ const SelectVendorsModal: React.FC<SelectVendorsModalProps> = ({
               </tbody>
             </table>
           </div>
+          )}
 
           {filteredVendors.length === 0 && (
             <div className="text-center py-8 text-gray-500">

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Eye, CheckCircle, XCircle } from 'lucide-react';
+import { Eye, CheckCircle } from 'lucide-react';
 import ViewCSDetailsModal from './ViewCSDetailsModal';
 
 interface CSVendor {
@@ -182,7 +182,6 @@ const ApproveCSTab: React.FC = () => {
                           <Eye className="w-4 h-4" />
                         </button>
                         {vendor.status === 'pending' && (
-                          <>
                             <button 
                               onClick={() => handleApprove(vendor)}
                               className="flex items-center space-x-1 px-2 py-1 text-green-600 hover:text-green-800 transition-colors text-sm"
@@ -190,14 +189,6 @@ const ApproveCSTab: React.FC = () => {
                             >
                               <CheckCircle className="w-4 h-4" />
                             </button>
-                            <button 
-                              onClick={() => handleReject(vendor)}
-                              className="flex items-center space-x-1 px-2 py-1 text-red-600 hover:text-red-800 transition-colors text-sm"
-                              title="Reject"
-                            >
-                              <XCircle className="w-4 h-4" />
-                            </button>
-                          </>
                         )}
                       </div>
                     </td>

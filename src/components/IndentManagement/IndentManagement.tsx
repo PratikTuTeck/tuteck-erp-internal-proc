@@ -323,7 +323,74 @@ const IndentManagement: React.FC = () => {
                         >
                           <Eye className="w-4 h-4" />
                         </button>
-                        <button
+                        {indent.status === 'pending' && (
+                          <button
+                            className="p-1 text-gray-600 hover:text-gray-800 transition-colors"
+                            title="Edit"
+                          >
+                            <Edit className="w-4 h-4" />
+                          </button>
+                        )}
+                        {indent.status === 'pending' && (
+                          <button
+                            onClick={() => handleApproveIndent(indent.id)}
+                            className="p-1 text-green-600 hover:text-green-800 transition-colors"
+                            title="Approve"
+                          >
+                            <CheckCircle className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* Modals */}
+      {showRaiseModal && (
+        <RaiseIndentModal
+          isOpen={showRaiseModal}
+          onClose={() => setShowRaiseModal(false)}
+          onIndentCreated={handleIndentCreated}
+        />
+      )}
+
+      {showViewModal && selectedIndent && (
+        <ViewIndentModal
+          isOpen={showViewModal}
+          onClose={() => {
+            setShowViewModal(false);
+            setSelectedIndent(null);
+          }}
+          indent={{
+            ...selectedIndent,
+            aggregateStatus: selectedIndent.aggregateStatus || "N/A",
+          }}
+        />
+      )}
+
+      {showApproveModal && selectedIndent && (
+        <ApproveIndentModal
+          isOpen={showApproveModal}
+          onClose={() => {
+            setShowApproveModal(false);
+            setSelectedIndent(null);
+          }}
+          indent={{
+            ...selectedIndent,
+            aggregateStatus: selectedIndent.aggregateStatus || "N/A",
+          }}
+        />
+      )}
+    </div>
+  );
+};
+
+export default IndentManagement;
                           className="p-1 text-gray-600 hover:text-gray-800 transition-colors"
                           title="Edit"
                         >

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Plus, Search, Eye, Edit, CheckCircle, FileText, Filter } from 'lucide-react';
+import axios from 'axios';
 import CreateRFQModal from './CreateRFQModal';
 import ApproveRFQModal from './ApproveRFQModal';
 import VendorQuotationEntry from './VendorQuotationEntry';
@@ -39,59 +40,75 @@ const VendorQuotation: React.FC = () => {
   const [showApproveQuotation, setShowApproveQuotation] = useState(false);
   const [selectedRFQ, setSelectedRFQ] = useState<RFQ | null>(null);
   const [selectedQuotation, setSelectedQuotation] = useState<VendorQuotation | null>(null);
-  const [selectedRFQs, setSelectedRFQs] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedRFQForQuotation, setSelectedRFQForQuotation] = useState('');
+  const [rfqs, setRfqs] = useState<RFQ[]>([]);
+  const [quotations, setQuotations] = useState<VendorQuotation[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
-  const rfqs: RFQ[] = [
-    {
-      id: '1',
-      rfqNo: 'RFQ-001',
-      deliveryLocation: 'Warehouse A',
-      vendorOptions: ['Vendor X', 'Vendor Y'],
-      rfqDate: '2024-07-10',
-      endDate: '2024-07-20',
-      approvedBy: 'John Doe',
-      approvedOn: '2024-07-11',
-      status: 'pending'
-    },
-    {
-      id: '2',
-      rfqNo: 'RFQ-002',
-      deliveryLocation: 'Warehouse B',
-      vendorOptions: ['Vendor A', 'Vendor B', 'Vendor C'],
-      rfqDate: '2024-07-12',
-      endDate: '2024-07-22',
-      approvedBy: 'Jane Smith',
-      approvedOn: '2024-07-13',
-      status: 'approved'
+  // Fetch RFQs on component mount and when activeTab changes
+  React.useEffect(() => {
+    if (activeTab === 'rfq') {
+      fetchRFQs();
+    } else if (activeTab === 'quotation') {
+      fetchQuotations();
     }
-  ];
+  }, [activeTab]);
 
-  const quotations: VendorQuotation[] = [
-    {
-      id: '1',
-      quotationNo: 'QUO-001',
-      rfqNo: 'RFQ-001',
-      requestedBy: 'John Doe',
-      requestedOn: '2024-07-12',
-      vendor: 'Vendor X',
-      approvedBy: 'Jane',
-      approvedOn: '2024-07-13',
-      status: 'pending'
-    },
-    {
-      id: '2',
-      quotationNo: 'QUO-002',
-      rfqNo: 'RFQ-002',
-      requestedBy: 'Alice Johnson',
-      requestedOn: '2024-07-14',
-      vendor: 'Vendor A',
-      approvedBy: 'Bob Wilson',
-      approvedOn: '2024-07-15',
-      status: 'approved'
+  const fetchRFQs = async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const response = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/rfq`);
+      if (response.data?.data) {
+        const mappedRFQs = response.data.data.map((rfq: any) => ({
+          id: rfq.rfq_id,
+          rfqNo: rfq.rfq_number,
+          deliveryLocation: rfq.delivery_location || 'N/A',
+          vendorOptions: rfq.vendor_options || [],
+          rfqDate: rfq.rfq_date ? new Date(rfq.rfq_date).toISOString().split('T')[0] : '',
+          endDate: rfq.end_date ? new Date(rfq.end_date).toISOString().split('T')[0] : '',
+          approvedBy: rfq.approved_by || '',
+          approvedOn: rfq.approved_on ? new Date(rfq.approved_on).toISOString().split('T')[0] : '',
+          status: rfq.approval_status?.toLowerCase() || 'pending'
+        }));
+        setRfqs(mappedRFQs);
+      }
+    } catch (err) {
+      console.error('Error fetching RFQs:', err);
+      setError('Failed to fetch RFQs');
+    } finally {
+      setLoading(false);
     }
-  ];
+  };
+
+  const fetchQuotations = async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const response = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/vendor-quotation`);
+      if (response.data?.data) {
+        const mappedQuotations = response.data.data.map((quotation: any) => ({
+          id: quotation.quotation_id,
+          quotationNo: quotation.quotation_number,
+          rfqNo: quotation.rfq_number,
+          requestedBy: quotation.requested_by || 'System',
+          requestedOn: quotation.requested_on ? new Date(quotation.requested_on).toISOString().split('T')[0] : '',
+          vendor: quotation.vendor_name,
+          approvedBy: quotation.approved_by || '',
+          approvedOn: quotation.approved_on ? new Date(quotation.approved_on).toISOString().split('T')[0] : '',
+          status: quotation.approval_status?.toLowerCase() || 'pending'
+        }));
+        setQuotations(mappedQuotations);
+      }
+    } catch (err) {
+      console.error('Error fetching quotations:', err);
+      setError('Failed to fetch quotations');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -102,20 +119,6 @@ const VendorQuotation: React.FC = () => {
     }
   };
 
-  const handleRFQCheckboxChange = (rfqId: string) => {
-    setSelectedRFQs(prev => 
-      prev.includes(rfqId) 
-        ? prev.filter(id => id !== rfqId)
-        : [...prev, rfqId]
-    );
-  };
-
-  const handleSelectAllRFQs = () => {
-    setSelectedRFQs(prev => 
-      prev.length === rfqs.length ? [] : rfqs.map(rfq => rfq.id)
-    );
-  };
-
   const handleApproveRFQ = (rfq: RFQ) => {
     setSelectedRFQ(rfq);
     setShowApproveRFQ(true);
@@ -124,6 +127,23 @@ const VendorQuotation: React.FC = () => {
   const handleApproveQuotation = (quotation: VendorQuotation) => {
     setSelectedQuotation(quotation);
     setShowApproveQuotation(true);
+  };
+
+  const handleViewRFQ = async (rfq: RFQ) => {
+    try {
+      const response = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/rfq/${rfq.id}`);
+      if (response.data?.data) {
+        // Map the detailed RFQ data and show in view modal
+        setSelectedRFQ({
+          ...rfq,
+          // Add any additional details from the API response
+        });
+        // You can create a ViewRFQModal similar to ViewIndentModal
+      }
+    } catch (err) {
+      console.error('Error fetching RFQ details:', err);
+      alert('Failed to fetch RFQ details');
+    }
   };
 
   const filteredRFQs = rfqs.filter(rfq =>
@@ -164,18 +184,23 @@ const VendorQuotation: React.FC = () => {
       <div className="bg-white rounded-lg border border-gray-200">
         <div className="p-6">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">RFQ List</h3>
+          
+          {loading && (
+            <div className="flex justify-center items-center py-8">
+              <div className="text-gray-600">Loading RFQs...</div>
+            </div>
+          )}
+          
+          {error && !loading && (
+            <div className="flex justify-center items-center py-8">
+              <div className="text-red-600">{error}</div>
+            </div>
+          )}
+          
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
-                  <th className="text-left py-3 px-4">
-                    <input
-                      type="checkbox"
-                      checked={selectedRFQs.length === rfqs.length && rfqs.length > 0}
-                      onChange={handleSelectAllRFQs}
-                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                    />
-                  </th>
                   <th className="text-left py-3 px-4 font-medium text-gray-900">RFQ No.</th>
                   <th className="text-left py-3 px-4 font-medium text-gray-900">Delivery Location</th>
                   <th className="text-left py-3 px-4 font-medium text-gray-900">Vendor Options</th>
@@ -190,14 +215,6 @@ const VendorQuotation: React.FC = () => {
               <tbody>
                 {filteredRFQs.map((rfq) => (
                   <tr key={rfq.id} className="border-b border-gray-200 hover:bg-gray-50">
-                    <td className="py-4 px-4">
-                      <input
-                        type="checkbox"
-                        checked={selectedRFQs.includes(rfq.id)}
-                        onChange={() => handleRFQCheckboxChange(rfq.id)}
-                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                      />
-                    </td>
                     <td className="py-4 px-4 font-medium text-gray-900">{rfq.rfqNo}</td>
                     <td className="py-4 px-4 text-gray-600">{rfq.deliveryLocation}</td>
                     <td className="py-4 px-4 text-gray-600">{rfq.vendorOptions.join(', ')}</td>
@@ -213,6 +230,7 @@ const VendorQuotation: React.FC = () => {
                     <td className="py-4 px-4">
                       <div className="flex items-center justify-center space-x-2">
                         <button 
+                          onClick={() => handleViewRFQ(rfq)}
                           className="p-1 text-blue-600 hover:text-blue-800 transition-colors"
                           title="View"
                         >
@@ -279,6 +297,19 @@ const VendorQuotation: React.FC = () => {
       <div className="bg-white rounded-lg border border-gray-200">
         <div className="p-6">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Vendor Quotation List</h3>
+          
+          {loading && (
+            <div className="flex justify-center items-center py-8">
+              <div className="text-gray-600">Loading quotations...</div>
+            </div>
+          )}
+          
+          {error && !loading && (
+            <div className="flex justify-center items-center py-8">
+              <div className="text-red-600">{error}</div>
+            </div>
+          )}
+          
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead className="bg-gray-50 border-b border-gray-200">
@@ -394,7 +425,10 @@ const VendorQuotation: React.FC = () => {
       {showCreateRFQ && (
         <CreateRFQModal 
           isOpen={showCreateRFQ} 
-          onClose={() => setShowCreateRFQ(false)} 
+          onClose={() => {
+            setShowCreateRFQ(false);
+            fetchRFQs(); // Refresh RFQs after creating
+          }}
         />
       )}
 

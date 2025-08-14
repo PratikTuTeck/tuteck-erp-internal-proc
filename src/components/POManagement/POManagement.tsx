@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Plus, Search, Eye, Edit, CheckCircle, XCircle, FileText, Download, Filter } from 'lucide-react';
+import axios from 'axios';
 import CreatePOModal from './CreatePOModal';
 import ViewPOModal from './ViewPOModal';
 import EditPOModal from './EditPOModal';
@@ -55,134 +56,56 @@ const POManagement: React.FC = () => {
   const [showAmendPO, setShowAmendPO] = useState(false);
   const [selectedPO, setSelectedPO] = useState<PO | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [purchaseOrders, setPurchaseOrders] = useState<PO[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
-  const purchaseOrders: PO[] = [
-    {
-      id: '1',
-      poNo: 'PO-2024-001',
-      vendorName: 'TechCorp Solutions Pvt Ltd',
-      contactNo: '9876543210',
-      poDate: '2024-01-15',
-      poAmount: 235000,
-      approvedBy: 'John Doe',
-      approvedOn: '2024-01-16',
-      status: 'APPROVED',
-      type: 'Quotation',
-      vendorAddress: '123 Tech Street, Bangalore - 560001',
-      warehouseName: 'Warehouse A',
-      gstNo: '29ABCDE1234F1Z5',
-      items: [
-        {
-          itemCode: 'ITM-001',
-          itemName: 'Steel Rod',
-          categoryName: 'Construction',
-          uom: 'Kg',
-          hsnCode: '7215',
-          rate: 350,
-          quantity: 100,
-          total: 35000
-        },
-        {
-          itemCode: 'ITM-002',
-          itemName: 'Steel Plate',
-          categoryName: 'Construction',
-          uom: 'Kg',
-          hsnCode: '7216',
-          rate: 250,
-          quantity: 80,
-          total: 20000
-        }
-      ],
-      vendorDetails: {
-        bankName: 'HDFC Bank',
-        accountNo: '1234567890',
-        ifscCode: 'HDFC0001234',
-        igst: 18,
-        sgst: 9,
-        cgst: 9
-      },
-      paymentTerms: [
-        { terms: 'Advance', amount: '30%', reason: 'Material booking' },
-        { terms: 'On Delivery', amount: '70%', reason: 'Final payment' }
-      ]
-    },
-    {
-      id: '2',
-      poNo: 'PO-2024-002',
-      vendorName: 'Innovate India Limited',
-      contactNo: '9876543211',
-      poDate: '2024-01-12',
-      poAmount: 850000,
-      status: 'PENDING',
-      type: 'Indent',
-      vendorAddress: '456 Innovation Hub, Mumbai - 400001',
-      warehouseName: 'Warehouse B',
-      gstNo: '27FGHIJ5678K2L6',
-      items: [
-        {
-          itemCode: 'ITM-003',
-          itemName: 'IT Equipment',
-          categoryName: 'Technology',
-          uom: 'Piece',
-          hsnCode: '8471',
-          rate: 85000,
-          quantity: 10,
-          total: 850000
-        }
-      ],
-      vendorDetails: {
-        bankName: 'ICICI Bank',
-        accountNo: '0987654321',
-        ifscCode: 'ICIC0000987',
-        igst: 18,
-        sgst: 9,
-        cgst: 9
-      },
-      paymentTerms: [
-        { terms: 'Advance', amount: '25%', reason: 'Order confirmation' },
-        { terms: 'On Delivery', amount: '75%', reason: 'Final payment' }
-      ]
-    },
-    {
-      id: '3',
-      poNo: 'PO-2024-003',
-      parentPO: 'PO-2024-001',
-      vendorName: 'TechCorp Solutions Pvt Ltd',
-      contactNo: '9876543210',
-      poDate: '2024-01-20',
-      poAmount: 150000,
-      approvedBy: 'Jane Smith',
-      approvedOn: '2024-01-21',
-      status: 'AMENDED',
-      type: 'Quotation',
-      vendorAddress: '123 Tech Street, Bangalore - 560001',
-      warehouseName: 'Warehouse A',
-      gstNo: '29ABCDE1234F1Z5',
-      items: [
-        {
-          itemCode: 'ITM-004',
-          itemName: 'Additional Steel Wire',
-          categoryName: 'Construction',
-          uom: 'Meter',
-          hsnCode: '7217',
-          rate: 15,
-          quantity: 1000,
-          total: 15000
-        }
-      ],
-      vendorDetails: {
-        bankName: 'HDFC Bank',
-        accountNo: '1234567890',
-        ifscCode: 'HDFC0001234',
-        igst: 18,
-        sgst: 9,
-        cgst: 9
-      },
-      paymentTerms: [
-        { terms: 'On Delivery', amount: '100%', reason: 'Amendment payment' }
-      ]
+  // Fetch POs on component mount
+  React.useEffect(() => {
+    fetchPOs();
+  }, []);
+
+  const fetchPOs = async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const response = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/po?approval_status=APPROVED`);
+      if (response.data?.data) {
+        const mappedPOs = response.data.data.map((po: any) => ({
+          id: po.po_id,
+          poNo: po.po_number,
+          parentPO: po.parent_po_number,
+          vendorName: po.vendor_name,
+          contactNo: po.vendor_contact,
+          poDate: po.po_date ? new Date(po.po_date).toISOString().split('T')[0] : '',
+          poAmount: po.po_amount || 0,
+          approvedBy: po.approved_by || '',
+          approvedOn: po.approved_on ? new Date(po.approved_on).toISOString().split('T')[0] : '',
+          status: po.approval_status || 'PENDING',
+          type: po.po_origin_type || 'Quotation',
+          vendorAddress: po.vendor_address || '',
+          warehouseName: po.warehouse_name || '',
+          gstNo: po.vendor_gst || '',
+          items: po.items || [],
+          vendorDetails: {
+            bankName: po.vendor_bank_name || '',
+            accountNo: po.vendor_account_no || '',
+            ifscCode: po.vendor_ifsc_code || '',
+            igst: po.igst_rate || 0,
+            sgst: po.sgst_rate || 0,
+            cgst: po.cgst_rate || 0
+          },
+          paymentTerms: po.payment_terms || []
+        }));
+        setPurchaseOrders(mappedPOs);
+      }
+    } catch (err) {
+      console.error('Error fetching POs:', err);
+      setError('Failed to fetch purchase orders');
+    } finally {
+      setLoading(false);
     }
-  ];
+  };
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -204,9 +127,25 @@ const POManagement: React.FC = () => {
     po.status.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const handleViewPO = (po: PO) => {
-    setSelectedPO(po);
-    setShowViewPO(true);
+  const handleViewPO = async (po: PO) => {
+    try {
+      const response = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/po/${po.id}`);
+      if (response.data?.data) {
+        // Map the detailed PO data
+        const detailedPO = {
+          ...po,
+          // Add any additional details from the API response
+          items: response.data.data.items || po.items,
+          vendorDetails: response.data.data.vendor_details || po.vendorDetails,
+          paymentTerms: response.data.data.payment_terms || po.paymentTerms
+        };
+        setSelectedPO(detailedPO);
+        setShowViewPO(true);
+      }
+    } catch (err) {
+      console.error('Error fetching PO details:', err);
+      alert('Failed to fetch PO details');
+    }
   };
 
   const handleEditPO = (po: PO) => {
@@ -278,6 +217,18 @@ const POManagement: React.FC = () => {
         </div>
 
         <div className="p-6">
+          {loading && (
+            <div className="flex justify-center items-center py-8">
+              <div className="text-gray-600">Loading purchase orders...</div>
+            </div>
+          )}
+          
+          {error && !loading && (
+            <div className="flex justify-center items-center py-8">
+              <div className="text-red-600">{error}</div>
+            </div>
+          )}
+          
           <div className="flex items-center justify-between mb-6">
             <h3 className="text-lg font-semibold text-gray-900">Purchase Orders</h3>
             <div className="relative">
@@ -398,7 +349,10 @@ const POManagement: React.FC = () => {
       {showCreatePO && (
         <CreatePOModal 
           isOpen={showCreatePO} 
-          onClose={() => setShowCreatePO(false)} 
+          onClose={() => {
+            setShowCreatePO(false);
+            fetchPOs(); // Refresh POs after creating
+          }}
         />
       )}
 

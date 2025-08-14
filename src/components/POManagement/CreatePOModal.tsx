@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { X, Plus, Trash2, Search } from 'lucide-react';
+import axios from 'axios';
 import { Select, MenuItem, Chip, FormControl, InputLabel, Box } from '@mui/material';
 
 interface CreatePOModalProps {
@@ -28,6 +29,12 @@ interface POItem {
 const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
   const [sourceType, setSourceType] = useState<'quotation' | 'indent'>('quotation');
   const [searchTerm, setSearchTerm] = useState('');
+  const [rfqs, setRfqs] = useState<any[]>([]);
+  const [indents, setIndents] = useState<any[]>([]);
+  const [vendors, setVendors] = useState<any[]>([]);
+  const [warehouses, setWarehouses] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  
   const [formData, setFormData] = useState({
     poDate: new Date().toISOString().split('T')[0],
     selectedRFQ: '',
@@ -76,28 +83,120 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
     }
   ]);
 
+  // Fetch data on component mount
+  React.useEffect(() => {
+    if (isOpen) {
+      fetchWarehouses();
+      if (sourceType === 'quotation') {
+        fetchApprovedRFQs();
+      } else {
+        fetchApprovedIndents();
+      }
+    }
+  }, [isOpen, sourceType]);
+
+  const fetchApprovedRFQs = async () => {
+    try {
+      const response = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/rfq?approval_status=APPROVED`);
+      if (response.data?.data) {
+        const mappedRFQs = response.data.data.map((rfq: any) => ({
+          id: rfq.rfq_id,
+          name: `${rfq.rfq_number} - ${rfq.description || 'RFQ'}`
+        }));
+        setRfqs(mappedRFQs);
+      }
+    } catch (err) {
+      console.error('Error fetching RFQs:', err);
+    }
+  };
+
+  const fetchApprovedIndents = async () => {
+    try {
+      const response = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/indent?approval_status=APPROVED`);
+      if (response.data?.data) {
+        const mappedIndents = response.data.data.map((indent: any) => ({
+          id: indent.indent_id,
+          name: `${indent.indent_number} - ${indent.project_name || 'Project'}`
+        }));
+        setIndents(mappedIndents);
+      }
+    } catch (err) {
+      console.error('Error fetching indents:', err);
+    }
+  };
+
+  const fetchRFQVendors = async (rfqId: string) => {
+    try {
+      const response = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/rfq_vendor?rfq_id=${rfqId}`);
+      if (response.data?.data) {
+        const mappedVendors = response.data.data.map((vendor: any) => ({
+          id: vendor.vendor_id,
+          name: vendor.vendor_name,
+          address: vendor.vendor_address || ''
+        }));
+        setVendors(mappedVendors);
+      }
+    } catch (err) {
+      console.error('Error fetching RFQ vendors:', err);
+    }
+  };
+
+  const fetchApprovedVendors = async () => {
+    try {
+      const response = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/vendor?approval_status=APPROVED`);
+      if (response.data?.data) {
+        const mappedVendors = response.data.data.map((vendor: any) => ({
+          id: vendor.vendor_id,
+          name: vendor.vendor_name,
+          address: vendor.vendor_address || ''
+        }));
+        setVendors(mappedVendors);
+      }
+    } catch (err) {
+      console.error('Error fetching vendors:', err);
+    }
+  };
+
+  const fetchWarehouses = async () => {
+    try {
+      const response = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/warehouse`);
+      if (response.data?.data) {
+        const mappedWarehouses = response.data.data.map((warehouse: any) => ({
+          id: warehouse.warehouse_id,
+          name: warehouse.warehouse_name
+        }));
+        setWarehouses(mappedWarehouses);
+      }
+    } catch (err) {
+      console.error('Error fetching warehouses:', err);
+    }
+  };
+
   if (!isOpen) return null;
 
-  const rfqs = [
-    { id: 'RFQ-001', name: 'RFQ-001 - Construction Materials' },
-    { id: 'RFQ-002', name: 'RFQ-002 - IT Equipment' }
-  ];
+  // Handle RFQ selection to fetch vendors
+  const handleRFQChange = (rfqId: string) => {
+    setFormData({...formData, selectedRFQ: rfqId});
+    if (rfqId) {
+      fetchRFQVendors(rfqId);
+    }
+  };
 
-  const indents = [
-    { id: 'IND-001', name: 'IND-001 - Office Equipment' },
-    { id: 'IND-002', name: 'IND-002 - Construction Materials' }
-  ];
-
-  const vendors = [
-    { id: 'V001', name: 'TechCorp Solutions Pvt Ltd', address: '123 Tech Street, Bangalore - 560001' },
-    { id: 'V002', name: 'Innovate India Limited', address: '456 Innovation Hub, Mumbai - 400001' }
-  ];
-
-  const warehouses = [
-    { id: 'WH-001', name: 'Warehouse A' },
-    { id: 'WH-002', name: 'Warehouse B' },
-    { id: 'WH-003', name: 'Warehouse C' }
-  ];
+  // Handle source type change
+  const handleSourceTypeChange = (type: 'quotation' | 'indent') => {
+    setSourceType(type);
+    setFormData({
+      ...formData,
+      selectedRFQ: '',
+      selectedIndent: '',
+      selectedVendor: ''
+    });
+    setVendors([]);
+    
+    if (type === 'indent') {
+      fetchApprovedVendors();
+    }
+  };
 
   const handleVendorChange = (vendorId: string) => {
     const vendor = vendors.find(v => v.id === vendorId);
@@ -160,27 +259,59 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
 
   const totalAmount = items.reduce((sum, item) => sum + item.totalPrice, 0);
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!formData.selectedVendor || items.length === 0) {
       alert('Please select vendor and ensure items are available');
       return;
     }
 
-    console.log('Creating PO:', {
-      sourceType,
-      formData,
-      paymentTerms,
-      items,
-      totalAmount
-    });
+    setLoading(true);
+    try {
+      const payload = {
+        po_origin_type: sourceType.toUpperCase(),
+        po_origin_id: sourceType === 'quotation' ? formData.selectedRFQ : formData.selectedIndent,
+        po_date: formData.poDate,
+        vendor_id: formData.selectedVendor,
+        warehouse_ids: formData.selectedWarehouses,
+        vendor_address: formData.vendorAddress,
+        vendor_bank_name: formData.bankName,
+        vendor_gst: formData.gstNo,
+        vendor_account_no: formData.accountNo,
+        vendor_ifsc_code: formData.ifscCode,
+        igst_rate: formData.igst,
+        sgst_rate: formData.sgst,
+        cgst_rate: formData.cgst,
+        payment_terms: paymentTerms.map(term => ({
+          terms: term.terms,
+          amount: term.amount,
+          reason: term.reason
+        })),
+        items: items.map(item => ({
+          item_code: item.itemCode,
+          quantity: item.quantity,
+          rate: item.rate
+        })),
+        total_amount: totalAmount
+      };
 
-    onClose();
+      const response = await axios.post(`${import.meta.env.VITE_API_BASE_URL}/po`, payload);
+      
+      if (response.data.success) {
+        alert('Purchase Order created successfully!');
+        onClose();
+      } else {
+        alert('Failed to create Purchase Order');
+      }
+    } catch (error) {
+      console.error('Error creating PO:', error);
+      alert('Error creating Purchase Order. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   // Filter vendors based on RFQ selection (won vendors only)
-  const availableVendors = sourceType === 'quotation' && formData.selectedRFQ 
-    ? vendors.filter(v => v.id === 'V001' || v.id === 'V002') // Mock: only won vendors
-    : vendors;
+  const availableVendors = vendors;
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -205,7 +336,7 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
                   type="radio"
                   value="quotation"
                   checked={sourceType === 'quotation'}
-                  onChange={(e) => setSourceType(e.target.value as 'quotation')}
+                  onChange={(e) => handleSourceTypeChange(e.target.value as 'quotation')}
                   className="mr-2"
                 />
                 <span>Quotation</span>
@@ -215,7 +346,7 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
                   type="radio"
                   value="indent"
                   checked={sourceType === 'indent'}
-                  onChange={(e) => setSourceType(e.target.value as 'indent')}
+                  onChange={(e) => handleSourceTypeChange(e.target.value as 'indent')}
                   className="mr-2"
                 />
                 <span>Indent Details</span>
@@ -244,7 +375,7 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
                 </label>
                 <select 
                   value={formData.selectedRFQ}
-                  onChange={(e) => setFormData({...formData, selectedRFQ: e.target.value})}
+                  onChange={(e) => handleRFQChange(e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
                   <option value="">Select RFQ</option>
@@ -584,9 +715,10 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
           </button>
           <button 
             onClick={handleSave}
+            disabled={loading}
             className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
           >
-            SAVE
+            {loading ? 'Saving...' : 'SAVE'}
           </button>
         </div>
       </div>

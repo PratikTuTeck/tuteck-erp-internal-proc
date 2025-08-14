@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { X, Plus, Edit, Save, Trash2, Upload } from 'lucide-react';
+import axios from 'axios';
 
 interface VendorQuotationEntryProps {
   isOpen: boolean;
@@ -31,6 +32,10 @@ const VendorQuotationEntry: React.FC<VendorQuotationEntryProps> = ({
   onClose, 
   selectedRFQ 
 }) => {
+  const [rfqDetails, setRfqDetails] = useState<any>(null);
+  const [vendors, setVendors] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  
   const [formData, setFormData] = useState({
     rfq: selectedRFQ,
     indentId: 'IND-001',
@@ -81,13 +86,55 @@ const VendorQuotationEntry: React.FC<VendorQuotationEntryProps> = ({
     }
   ]);
 
-  if (!isOpen) return null;
+  // Fetch RFQ details and vendors on component mount
+  React.useEffect(() => {
+    if (isOpen && selectedRFQ) {
+      fetchRFQDetails();
+      fetchVendors();
+    }
+  }, [isOpen, selectedRFQ]);
 
-  const vendors = [
-    { id: 'V001', name: 'Vendor X' },
-    { id: 'V002', name: 'Vendor Y' },
-    { id: 'V003', name: 'Vendor A' }
-  ];
+  const fetchRFQDetails = async () => {
+    try {
+      const response = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/rfq-details?rfq_id=${selectedRFQ}`);
+      if (response.data?.data) {
+        setRfqDetails(response.data.data);
+        // Update quotation items based on RFQ details
+        if (response.data.data.items) {
+          const mappedItems = response.data.data.items.map((item: any, index: number) => ({
+            slNo: index + 1,
+            itemCode: item.item_code,
+            itemName: item.item_name,
+            uom: item.uom,
+            procureQty: item.required_quantity,
+            canProvideQty: item.required_quantity,
+            rate: 0,
+            isEditing: false
+          }));
+          setQuotationItems(mappedItems);
+        }
+      }
+    } catch (err) {
+      console.error('Error fetching RFQ details:', err);
+    }
+  };
+
+  const fetchVendors = async () => {
+    try {
+      const response = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/vendors?approval_status=APPROVED`);
+      if (response.data?.data) {
+        const mappedVendors = response.data.data.map((vendor: any) => ({
+          id: vendor.vendor_id,
+          name: vendor.vendor_name
+        }));
+        setVendors(mappedVendors);
+      }
+    } catch (err) {
+      console.error('Error fetching vendors:', err);
+    }
+  };
+
+  if (!isOpen) return null;
 
   const rfqs = [
     { id: 'RFQ-001', name: 'RFQ-001' },
@@ -133,14 +180,57 @@ const VendorQuotationEntry: React.FC<VendorQuotationEntryProps> = ({
     ));
   };
 
-  const handleSubmitQuotation = () => {
+  const handleSubmitQuotation = async () => {
     if (!formData.vendor || !formData.timeOfDelivery || !formData.priceValidity || !formData.deliveryPeriod) {
       alert('Please fill all mandatory fields');
       return;
     }
 
-    console.log('Submitting quotation:', { formData, paymentMilestones, quotationItems });
-    onClose();
+    setLoading(true);
+    try {
+      const payload = {
+        rfq_id: formData.rfq,
+        vendor_id: formData.vendor,
+        entry_date: formData.entryDate,
+        time_of_delivery: formData.timeOfDelivery,
+        response_time: formData.responseTime,
+        price_validity: formData.priceValidity,
+        delivery_period: formData.deliveryPeriod,
+        services: {
+          packaging: formData.packaging,
+          freight: formData.freight,
+          loading: formData.loading,
+          unloading: formData.unloading,
+          warranty: formData.warranty
+        },
+        comment: formData.comment,
+        payment_milestones: paymentMilestones.map(milestone => ({
+          type: milestone.type,
+          payment_type: milestone.paymentType,
+          amount: milestone.amount,
+          reason: milestone.reason
+        })),
+        items: quotationItems.map(item => ({
+          item_code: item.itemCode,
+          can_provide_qty: item.canProvideQty,
+          rate: item.rate
+        }))
+      };
+
+      const response = await axios.post(`${import.meta.env.VITE_API_BASE_URL}/vendor-quotation`, payload);
+      
+      if (response.data.success) {
+        alert('Vendor quotation submitted successfully!');
+        onClose();
+      } else {
+        alert('Failed to submit quotation');
+      }
+    } catch (error) {
+      console.error('Error submitting quotation:', error);
+      alert('Error submitting quotation. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -486,9 +576,10 @@ const VendorQuotationEntry: React.FC<VendorQuotationEntryProps> = ({
           </button>
           <button 
             onClick={handleSubmitQuotation}
+            disabled={loading}
             className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
           >
-            SUBMIT Vendor Quotation
+            {loading ? 'Submitting...' : 'SUBMIT Vendor Quotation'}
           </button>
         </div>
       </div>
