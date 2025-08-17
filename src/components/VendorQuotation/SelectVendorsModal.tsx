@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
-import { X, Search } from 'lucide-react';
-import axios from 'axios';
+import React, { useState } from "react";
+import { X, Search } from "lucide-react";
+import axios from "axios";
 
 interface SelectVendorsModalProps {
   isOpen: boolean;
@@ -16,14 +16,14 @@ interface Vendor {
   contactNumber: string;
 }
 
-const SelectVendorsModal: React.FC<SelectVendorsModalProps> = ({ 
-  isOpen, 
-  onClose, 
+const SelectVendorsModal: React.FC<SelectVendorsModalProps> = ({
+  isOpen,
+  onClose,
   onVendorsSelected,
-  itemName 
+  itemName,
 }) => {
   const [selectedVendors, setSelectedVendors] = useState<string[]>([]);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [searchTerm, setSearchTerm] = useState("");
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -37,18 +37,22 @@ const SelectVendorsModal: React.FC<SelectVendorsModalProps> = ({
   const fetchVendors = async () => {
     setLoading(true);
     try {
-      const response = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/vendors?approval_status=APPROVED`);
+      const response = await axios.get(
+        `${
+          import.meta.env.VITE_CRM_API_BASE_URL
+        }/vendor/filter?approval_status=APPROVED`
+      );
       if (response.data?.data) {
         const mappedVendors = response.data.data.map((vendor: any) => ({
           id: vendor.id,
-          vendorId: vendor.vendor_code || vendor.id,
-          vendorName: vendor.vendor_name,
-          contactNumber: vendor.contact_number || 'N/A'
+          vendorId: vendor.vendor_id || vendor.id,
+          vendorName: vendor.business_name,
+          contactNumber: vendor.contact_no || "N/A",
         }));
         setVendors(mappedVendors);
       }
     } catch (err) {
-      console.error('Error fetching vendors:', err);
+      console.error("Error fetching vendors:", err);
     } finally {
       setLoading(false);
     }
@@ -56,25 +60,30 @@ const SelectVendorsModal: React.FC<SelectVendorsModalProps> = ({
 
   if (!isOpen) return null;
 
-  const filteredVendors = vendors.filter(vendor =>
-    vendor.vendorName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    vendor.vendorId.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    vendor.contactNumber.includes(searchTerm)
+  const filteredVendors = vendors.filter(
+    (vendor) =>
+      (vendor.vendorName?.toLowerCase() || "").includes(
+        searchTerm.toLowerCase()
+      ) ||
+      (vendor.vendorId?.toLowerCase() || "").includes(
+        searchTerm.toLowerCase()
+      ) ||
+      (vendor.contactNumber || "").includes(searchTerm)
   );
 
   const handleVendorSelect = (vendorName: string) => {
-    setSelectedVendors(prev => 
-      prev.includes(vendorName) 
-        ? prev.filter(name => name !== vendorName)
+    setSelectedVendors((prev) =>
+      prev.includes(vendorName)
+        ? prev.filter((name) => name !== vendorName)
         : [...prev, vendorName]
     );
   };
 
   const handleSelectAll = () => {
-    setSelectedVendors(prev => 
-      prev.length === filteredVendors.length 
-        ? [] 
-        : filteredVendors.map(vendor => vendor.vendorName)
+    setSelectedVendors((prev) =>
+      prev.length === filteredVendors.length
+        ? []
+        : filteredVendors.map((vendor) => vendor.vendorName)
     );
   };
 
@@ -83,11 +92,13 @@ const SelectVendorsModal: React.FC<SelectVendorsModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-60">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full mx-4 max-h-[80vh] overflow-y-auto">
         <div className="flex items-center justify-between p-6 border-b border-gray-200">
           <div>
-            <h2 className="text-xl font-semibold text-gray-900">Select Vendors for Item</h2>
+            <h2 className="text-xl font-semibold text-gray-900">
+              Select Vendors for Item
+            </h2>
             <p className="text-sm text-gray-600 mt-1">Item: {itemName}</p>
           </div>
           <button
@@ -117,42 +128,60 @@ const SelectVendorsModal: React.FC<SelectVendorsModalProps> = ({
               <div className="text-gray-600">Loading vendors...</div>
             </div>
           ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full border border-gray-200 rounded-lg">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="text-left py-3 px-4">
-                    <input
-                      type="checkbox"
-                      checked={selectedVendors.length === filteredVendors.length && filteredVendors.length > 0}
-                      onChange={handleSelectAll}
-                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                    />
-                  </th>
-                  <th className="text-left py-3 px-4 font-medium text-gray-900">Vendor ID</th>
-                  <th className="text-left py-3 px-4 font-medium text-gray-900">Vendor Name</th>
-                  <th className="text-left py-3 px-4 font-medium text-gray-900">Contact Number</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredVendors.map((vendor) => (
-                  <tr key={vendor.id} className="border-t border-gray-200 hover:bg-gray-50">
-                    <td className="py-3 px-4">
+            <div className="overflow-x-auto">
+              <table className="w-full border border-gray-200 rounded-lg">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="text-left py-3 px-4">
                       <input
                         type="checkbox"
-                        checked={selectedVendors.includes(vendor.vendorName)}
-                        onChange={() => handleVendorSelect(vendor.vendorName)}
+                        checked={
+                          selectedVendors.length === filteredVendors.length &&
+                          filteredVendors.length > 0
+                        }
+                        onChange={handleSelectAll}
                         className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                       />
-                    </td>
-                    <td className="py-3 px-4 font-medium text-gray-900">{vendor.vendorId}</td>
-                    <td className="py-3 px-4 text-gray-600">{vendor.vendorName}</td>
-                    <td className="py-3 px-4 text-gray-600">{vendor.contactNumber}</td>
+                    </th>
+                    <th className="text-left py-3 px-4 font-medium text-gray-900">
+                      Vendor ID
+                    </th>
+                    <th className="text-left py-3 px-4 font-medium text-gray-900">
+                      Vendor Name
+                    </th>
+                    <th className="text-left py-3 px-4 font-medium text-gray-900">
+                      Contact Number
+                    </th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {filteredVendors.map((vendor) => (
+                    <tr
+                      key={vendor.id}
+                      className="border-t border-gray-200 hover:bg-gray-50"
+                    >
+                      <td className="py-3 px-4">
+                        <input
+                          type="checkbox"
+                          checked={selectedVendors.includes(vendor.vendorName)}
+                          onChange={() => handleVendorSelect(vendor.vendorName)}
+                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                        />
+                      </td>
+                      <td className="py-3 px-4 font-medium text-gray-900">
+                        {vendor.vendorId}
+                      </td>
+                      <td className="py-3 px-4 text-gray-600">
+                        {vendor.vendorName}
+                      </td>
+                      <td className="py-3 px-4 text-gray-600">
+                        {vendor.contactNumber}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
 
           {filteredVendors.length === 0 && (
@@ -164,7 +193,8 @@ const SelectVendorsModal: React.FC<SelectVendorsModalProps> = ({
 
         <div className="flex items-center justify-between p-6 border-t border-gray-200">
           <p className="text-sm text-gray-600">
-            {selectedVendors.length} of {filteredVendors.length} vendors selected
+            {selectedVendors.length} of {filteredVendors.length} vendors
+            selected
           </p>
           <div className="flex items-center space-x-3">
             <button
@@ -173,13 +203,13 @@ const SelectVendorsModal: React.FC<SelectVendorsModalProps> = ({
             >
               CANCEL
             </button>
-            <button 
+            <button
               onClick={handleSubmit}
               disabled={selectedVendors.length === 0}
               className={`px-4 py-2 rounded-lg font-medium transition-colors ${
                 selectedVendors.length > 0
-                  ? 'bg-blue-600 text-white hover:bg-blue-700'
-                  : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                  ? "bg-blue-600 text-white hover:bg-blue-700"
+                  : "bg-gray-300 text-gray-500 cursor-not-allowed"
               }`}
             >
               SUBMIT
