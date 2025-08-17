@@ -18,6 +18,7 @@ interface CreateRFQModalProps {
 }
 
 interface ItemDetail {
+  indentDetailId: string; // Added this property
   itemCode: string;
   itemName: string;
   uom_name: string;
@@ -30,8 +31,8 @@ interface AggregatedItem {
   itemName: string;
   uom_name: string;
   required_quantity: number;
-  selectedVendors: string[];
-  sourceIndents: string[];
+  selectedVendors: { id: string; name: string }[]; // Updated type to include both ID and name
+  sourceIndents: { id: string; number: string }[];
 }
 
 const CreateRFQModal: React.FC<CreateRFQModalProps> = ({ isOpen, onClose }) => {
@@ -109,7 +110,8 @@ const CreateRFQModal: React.FC<CreateRFQModalProps> = ({ isOpen, onClose }) => {
       if (response.data?.data?.items) {
         const mappedItems: ItemDetail[] = response.data.data.items.map(
           (item: any) => ({
-            itemCode: item.item_code || item.id,
+            indentDetailId: item.id,
+            itemCode: item.item_code,
             itemName: item.item_name || item.name,
             uom_name: item.uom_name || item.uom,
             required_quantity:
@@ -160,16 +162,20 @@ const CreateRFQModal: React.FC<CreateRFQModalProps> = ({ isOpen, onClose }) => {
 
         if (itemMap.has(key)) {
           const existing = itemMap.get(key)!;
-          existing.required_quantity += item.required_quantity;
-          existing.sourceIndents.push(indentNumber);
+          existing.required_quantity += Number(item.required_quantity);
+          console.log(
+            "Aggregated item qty:",
+            typeof existing.required_quantity
+          );
+          existing.sourceIndents.push({ id: indentId, number: indentNumber });
         } else {
           itemMap.set(key, {
             itemCode: item.itemCode,
             itemName: item.itemName,
             uom_name: item.uom_name,
-            required_quantity: item.required_quantity,
+            required_quantity: Number(item.required_quantity),
             selectedVendors: [],
-            sourceIndents: [indentNumber],
+            sourceIndents: [{ id: indentId, number: indentNumber }],
           });
         }
       });
@@ -239,10 +245,12 @@ const CreateRFQModal: React.FC<CreateRFQModalProps> = ({ isOpen, onClose }) => {
     setShowSelectVendors(true);
   };
 
-  const handleVendorsSelected = (vendors: string[]) => {
+  const handleVendorsSelected = (vendors: { id: string; name: string }[]) => {
     if (selectedItemIndex !== null) {
       const updatedItems = [...aggregatedItems];
-      updatedItems[selectedItemIndex].selectedVendors = vendors;
+      updatedItems[selectedItemIndex].selectedVendors = vendors.map(
+        (vendor) => ({ id: vendor.id, name: vendor.name })
+      );
       setAggregatedItems(updatedItems);
     }
     setShowSelectVendors(false);
@@ -265,29 +273,90 @@ const CreateRFQModal: React.FC<CreateRFQModalProps> = ({ isOpen, onClose }) => {
 
     setLoading(true);
     try {
-      const payload = {
-        rfq_date: formData.rfqDate,
-        rfq_end_date: formData.endDate,
-        note: formData.description,
-        indent_ids: selectedIndents,
-        warehouse_ids: selectedWarehouses,
-        vendor_items: aggregatedItems.map((item) => ({
-          item_id: item.itemCode,
-          vendor_ids: item.selectedVendors,
-        })),
-      };
-
-      const response = await axios.post(
+      // First API Call: Create RFQ
+      const rfqResponse = await axios.post(
         `${import.meta.env.VITE_API_BASE_URL}/rfq`,
-        payload
+        {
+          rfq_date: formData.rfqDate,
+          rfq_end_date: formData.endDate,
+          note: formData.description,
+        }
       );
 
-      if (response.data.success) {
-        alert("RFQ created successfully!");
-        onClose();
-      } else {
-        alert("Failed to create RFQ");
+      if (!rfqResponse.data.success) {
+        throw new Error("Failed to create RFQ");
       }
+
+      const rfqId = rfqResponse.data.data.id;
+
+      // Second API Call: Bulk create indents
+      if (selectedIndents.length > 0) {
+        const indentResponse = await axios.post(
+          `${import.meta.env.VITE_API_BASE_URL}/rfq-indent/bulk`,
+          selectedIndents.map((indentId) => ({
+            indent_id: indentId,
+            rfq_id: rfqId,
+          }))
+        );
+
+        if (!indentResponse.data.success) {
+          throw new Error("Failed to associate indents with RFQ");
+        }
+      }
+
+      // Third API Call: Bulk create warehouses
+      if (selectedWarehouses.length > 0) {
+        const warehouseResponse = await axios.post(
+          `${import.meta.env.VITE_API_BASE_URL}/rfq-warehouse/bulk`,
+          selectedWarehouses.map((warehouseId) => ({
+            warehouse_id: warehouseId,
+            rfq_id: rfqId,
+          }))
+        );
+
+        if (!warehouseResponse.data.success) {
+          throw new Error("Failed to associate warehouses with RFQ");
+        }
+      }
+
+      // Fourth API Call: Bulk create vendor items
+      const vendorItemsPayload: Array<{
+        vendor_id: string;
+        rfq_id: string;
+        indent_item_id: string;
+      }> = [];
+
+      console.log("Aggregated Items:", aggregatedItems);
+      console.log("Indent Items Cache:", indentItemsCache);
+
+      aggregatedItems.forEach((item) => {
+        item.selectedVendors.forEach((vendor) => {
+          item.sourceIndents.forEach((indent) => {
+            const indentDetail = indentItemsCache[indent.id]?.find(
+              (detail: any) => detail.itemCode === item.itemCode
+            );
+            if (indentDetail) {
+              vendorItemsPayload.push({
+                vendor_id: vendor.id, // Use vendor ID here
+                rfq_id: rfqId,
+                indent_item_id: indentDetail.indentDetailId,
+              });
+            }
+          });
+        });
+      });
+
+      const vendorItemsResponse = await axios.post(
+        `${import.meta.env.VITE_API_BASE_URL}/rfq-vendor/bulk`,
+        vendorItemsPayload
+      );
+
+      if (!vendorItemsResponse.data.success) {
+        throw new Error("Failed to associate vendor items with RFQ");
+      }
+
+      alert("RFQ created successfully!");
+      onClose();
     } catch (error) {
       console.error("Error creating RFQ:", error);
       alert("Error creating RFQ. Please try again.");
@@ -511,10 +580,6 @@ const CreateRFQModal: React.FC<CreateRFQModalProps> = ({ isOpen, onClose }) => {
                       </tr>
                     </thead>
                     <tbody>
-                      {console.log(
-                        "Rendering aggregated items::::",
-                        aggregatedItems
-                      )}
                       {aggregatedItems.map((item, index) => (
                         <tr key={item.itemCode} className="hover:bg-gray-50">
                           <td className="py-3 px-4 text-gray-900 border-b">
@@ -531,19 +596,22 @@ const CreateRFQModal: React.FC<CreateRFQModalProps> = ({ isOpen, onClose }) => {
                           </td>
                           <td className="py-3 px-4 text-gray-600 border-b">
                             <div className="flex flex-wrap gap-1">
-                              {item.sourceIndents.map((indentId) => (
+                              {item.sourceIndents.map((indent) => (
                                 <span
-                                  key={indentId}
+                                  key={indent.id}
                                   className="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs"
+                                  title={`Indent ID: ${indent.id}`}
                                 >
-                                  {indentId}
+                                  {indent.number}
                                 </span>
                               ))}
                             </div>
                           </td>
                           <td className="py-3 px-4 text-gray-600 border-b">
                             {item.selectedVendors.length > 0
-                              ? item.selectedVendors.join(", ")
+                              ? item.selectedVendors
+                                  .map((vendor) => vendor.name)
+                                  .join(", ")
                               : "No vendors selected"}
                           </td>
                           <td className="py-3 px-4 text-center border-b">

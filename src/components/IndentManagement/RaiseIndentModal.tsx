@@ -100,7 +100,7 @@ const RaiseIndentModal: React.FC<RaiseIndentModalProps> = ({
     try {
       // First API call - Create indent
       const indentData = {
-        indent_number: formData.indentId,
+        // indent_number: formData.indentId,
         recieving_warehouse: null, // Add if needed
         request_date: formData.requestDate,
         expected_date: formData.expectedDate,

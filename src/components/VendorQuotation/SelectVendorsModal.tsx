@@ -5,7 +5,7 @@ import axios from "axios";
 interface SelectVendorsModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onVendorsSelected: (vendors: string[]) => void;
+  onVendorsSelected: (vendors: { id: string; name: string }[]) => void;
   itemName: string;
 }
 
@@ -88,7 +88,10 @@ const SelectVendorsModal: React.FC<SelectVendorsModalProps> = ({
   };
 
   const handleSubmit = () => {
-    onVendorsSelected(selectedVendors);
+    const selectedVendorDetails = vendors
+      .filter((vendor) => selectedVendors.includes(vendor.vendorName))
+      .map((vendor) => ({ id: vendor.vendorId, name: vendor.vendorName }));
+    onVendorsSelected(selectedVendorDetails);
   };
 
   return (
