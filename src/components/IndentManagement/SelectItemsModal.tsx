@@ -41,11 +41,14 @@ const SelectItemsModal: React.FC<SelectItemsModalProps> = ({
       setLoading(true);
       setError("");
       axios
-        .get(`${import.meta.env.VITE_API_BASE_URL}/bom/${bomId}`)
+        .get(`${import.meta.env.VITE_API_BASE_URL}/indent/bom/details`)
         .then((res) => {
-          if (res.data.data && res.data.data.items) {
+          const selectedBOM = res.data.data.find(
+            (bom: any) => bom.id === bomId
+          );
+          if (selectedBOM && selectedBOM.items) {
             // Filter out items that have actual item data (not null)
-            const validItems = res.data.data.items.filter(
+            const validItems = selectedBOM.items.filter(
               (item: any) => item.item !== null
             );
             setBomItems(validItems);
@@ -85,12 +88,12 @@ const SelectItemsModal: React.FC<SelectItemsModalProps> = ({
         itemId: item.item.id,
         itemCode: item.item.item_code,
         itemName: item.item.item_name,
-        uom: item.item.uom_name || item.item.uom_id, // Prefer name over ID
+        uom: item.item.uom_id, // This might need to be resolved to actual UOM name
         rate: item.item.unit_price || item.item.latest_lowest_net_rate || 0,
         availableQty: item.item.safety_stock || 0,
         requiredQty: item.required_quantity ?? 0,
-        allocatedQty: 0, // This would come from existing allocations
-        procureQty: item.required_quantity ?? 0,
+        allocatedQty: 50, // Default value - can be made configurable
+        procureQty: item.required_quantity ?? 0, // Prefill with required quantity
       }));
 
     onItemsSelected(selectedItemsData);

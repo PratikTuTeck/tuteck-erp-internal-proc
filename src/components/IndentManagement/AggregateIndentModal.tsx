@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { X, Package, Calendar } from 'lucide-react';
+import React, { useState } from "react";
+import { X, Package, Calendar } from "lucide-react";
 
 interface AggregateIndentModalProps {
   isOpen: boolean;
@@ -28,55 +28,60 @@ interface AggregateIndentModalProps {
   }>;
 }
 
-const AggregateIndentModal: React.FC<AggregateIndentModalProps> = ({ 
-  isOpen, 
-  onClose, 
-  selectedIndents 
+const AggregateIndentModal: React.FC<AggregateIndentModalProps> = ({
+  isOpen,
+  onClose,
+  selectedIndents,
 }) => {
   const [formData, setFormData] = useState({
-    createdDate: new Date().toISOString().split('T')[0],
-    expectedDate: ''
+    createdDate: new Date().toISOString().split("T")[0],
+    expectedDate: "",
   });
 
   if (!isOpen) return null;
 
   // Aggregate items from all selected indents
-  const aggregatedItems = selectedIndents.reduce((acc, indent) => {
-    indent.items.forEach(item => {
-      const existingItem = acc.find(aggItem => aggItem.itemCode === item.itemCode);
-      if (existingItem) {
-        existingItem.requiredQuantity += item.requiredQty;
-        existingItem.indentNumbers.push(indent.indentNumber);
-      } else {
-        acc.push({
-          itemCode: item.itemCode,
-          itemName: item.itemName,
-          uom: item.uom,
-          requiredQuantity: item.requiredQty,
-          indentNumbers: [indent.indentNumber]
-        });
-      }
-    });
-    return acc;
-  }, [] as Array<{
-    itemCode: string;
-    itemName: string;
-    uom: string;
-    requiredQuantity: number;
-    indentNumbers: string[];
-  }>);
+  const aggregatedItems = selectedIndents.reduce(
+    (acc, indent) => {
+      indent.items.forEach((item) => {
+        const existingItem = acc.find(
+          (aggItem) => aggItem.itemCode === item.itemCode
+        );
+        if (existingItem) {
+          existingItem.requiredQuantity += item.requiredQty;
+          existingItem.indentNumbers.push(indent.indentNumber);
+        } else {
+          acc.push({
+            itemCode: item.itemCode,
+            itemName: item.itemName,
+            uom: item.uom,
+            requiredQuantity: item.requiredQty,
+            indentNumbers: [indent.indentNumber],
+          });
+        }
+      });
+      return acc;
+    },
+    [] as Array<{
+      itemCode: string;
+      itemName: string;
+      uom: string;
+      requiredQuantity: number;
+      indentNumbers: string[];
+    }>
+  );
 
   const handleSaveAggregate = () => {
     if (!formData.expectedDate) {
-      alert('Please select an expected date');
+      alert("Please select an expected date");
       return;
     }
 
     // Save aggregation logic
-    console.log('Saving aggregated indent:', {
-      selectedIndents: selectedIndents.map(i => i.indentNumber),
+    console.log("Saving aggregated indent:", {
+      selectedIndents: selectedIndents.map((i) => i.indentNumber),
       aggregatedItems,
-      ...formData
+      ...formData,
     });
 
     onClose();
@@ -88,7 +93,9 @@ const AggregateIndentModal: React.FC<AggregateIndentModalProps> = ({
         <div className="flex items-center justify-between p-6 border-b border-gray-200">
           <div className="flex items-center space-x-3">
             <Package className="w-6 h-6 text-green-600" />
-            <h2 className="text-xl font-semibold text-gray-900">Aggregate Indents</h2>
+            <h2 className="text-xl font-semibold text-gray-900">
+              Aggregate Indents
+            </h2>
           </div>
           <button
             onClick={onClose}
@@ -101,10 +108,15 @@ const AggregateIndentModal: React.FC<AggregateIndentModalProps> = ({
         <div className="p-6 space-y-6">
           {/* Selected Indents Summary */}
           <div className="bg-blue-50 rounded-lg p-4">
-            <h3 className="text-lg font-semibold text-blue-800 mb-2">Selected Indents for Aggregation</h3>
+            <h3 className="text-lg font-semibold text-blue-800 mb-2">
+              Selected Indents for Aggregation
+            </h3>
             <div className="flex flex-wrap gap-2">
-              {selectedIndents.map(indent => (
-                <span key={indent.id} className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-medium">
+              {selectedIndents.map((indent) => (
+                <span
+                  key={indent.id}
+                  className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-medium"
+                >
                   {indent.indentNumber}
                 </span>
               ))}
@@ -137,7 +149,9 @@ const AggregateIndentModal: React.FC<AggregateIndentModalProps> = ({
                 <input
                   type="date"
                   value={formData.expectedDate}
-                  onChange={(e) => setFormData({...formData, expectedDate: e.target.value})}
+                  onChange={(e) =>
+                    setFormData({ ...formData, expectedDate: e.target.value })
+                  }
                   className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
@@ -146,34 +160,55 @@ const AggregateIndentModal: React.FC<AggregateIndentModalProps> = ({
 
           {/* Aggregated Item Details Table */}
           <div>
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Aggregated Item Details</h3>
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">
+              Aggregated Item Details
+            </h3>
             <div className="overflow-x-auto">
               <table className="w-full border border-gray-200 rounded-lg">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th className="text-left py-3 px-4 font-medium text-gray-900">Item Code</th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-900">Item Name</th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-900">Indent No.</th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-900">UOM</th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-900">Required Quantity</th>
+                    <th className="text-left py-3 px-4 font-medium text-gray-900">
+                      Item Code
+                    </th>
+                    <th className="text-left py-3 px-4 font-medium text-gray-900">
+                      Item Name
+                    </th>
+                    <th className="text-left py-3 px-4 font-medium text-gray-900">
+                      Indent No.
+                    </th>
+                    <th className="text-left py-3 px-4 font-medium text-gray-900">
+                      UOM
+                    </th>
+                    <th className="text-left py-3 px-4 font-medium text-gray-900">
+                      Required Quantity
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
                   {aggregatedItems.map((item, index) => (
                     <tr key={index} className="border-t border-gray-200">
-                      <td className="py-3 px-4 font-medium text-gray-900">{item.itemCode}</td>
-                      <td className="py-3 px-4 text-gray-600">{item.itemName}</td>
+                      <td className="py-3 px-4 font-medium text-gray-900">
+                        {item.itemCode}
+                      </td>
+                      <td className="py-3 px-4 text-gray-600">
+                        {item.itemName}
+                      </td>
                       <td className="py-3 px-4 text-gray-600">
                         <div className="flex flex-wrap gap-1">
-                          {item.indentNumbers.map(indentNo => (
-                            <span key={indentNo} className="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs">
+                          {item.indentNumbers.map((indentNo) => (
+                            <span
+                              key={indentNo}
+                              className="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs"
+                            >
                               {indentNo}
                             </span>
                           ))}
                         </div>
                       </td>
                       <td className="py-3 px-4 text-gray-600">{item.uom}</td>
-                      <td className="py-3 px-4 font-medium text-gray-900">{item.requiredQuantity}</td>
+                      <td className="py-3 px-4 font-medium text-gray-900">
+                        {item.requiredQuantity}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -185,16 +220,23 @@ const AggregateIndentModal: React.FC<AggregateIndentModalProps> = ({
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="bg-gray-50 rounded-lg p-4">
               <p className="text-sm text-gray-500">Total Indents</p>
-              <p className="text-2xl font-bold text-gray-900">{selectedIndents.length}</p>
+              <p className="text-2xl font-bold text-gray-900">
+                {selectedIndents.length}
+              </p>
             </div>
             <div className="bg-gray-50 rounded-lg p-4">
               <p className="text-sm text-gray-500">Unique Items</p>
-              <p className="text-2xl font-bold text-gray-900">{aggregatedItems.length}</p>
+              <p className="text-2xl font-bold text-gray-900">
+                {aggregatedItems.length}
+              </p>
             </div>
             <div className="bg-gray-50 rounded-lg p-4">
               <p className="text-sm text-gray-500">Total Quantity</p>
               <p className="text-2xl font-bold text-gray-900">
-                {aggregatedItems.reduce((sum, item) => sum + item.requiredQuantity, 0)}
+                {aggregatedItems.reduce(
+                  (sum, item) => sum + item.requiredQuantity,
+                  0
+                )}
               </p>
             </div>
           </div>
@@ -207,7 +249,7 @@ const AggregateIndentModal: React.FC<AggregateIndentModalProps> = ({
           >
             Cancel
           </button>
-          <button 
+          <button
             onClick={handleSaveAggregate}
             className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
           >
