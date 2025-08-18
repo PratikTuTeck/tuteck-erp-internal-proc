@@ -572,7 +572,7 @@ const CreateRFQModal: React.FC<CreateRFQModalProps> = ({ isOpen, onClose }) => {
                           Source Indents
                         </th>
                         <th className="py-3 px-4 text-left text-sm font-medium text-gray-700 border-b">
-                          Selected Vendors
+                          Vendor options
                         </th>
                         <th className="py-3 px-4 text-center text-sm font-medium text-gray-700 border-b">
                           Action
