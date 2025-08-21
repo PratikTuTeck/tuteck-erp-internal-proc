@@ -25,6 +25,7 @@ interface POItem {
   rate: number;
   quantity: number;
   totalPrice: number;
+  cs_id?: string; // CS ID for quotation-sourced items
 }
 
 const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
@@ -241,6 +242,7 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
             quantity: parseInt(item.selected_qty) || 0,
             totalPrice:
               (parseFloat(item.rate) || 0) * (parseInt(item.selected_qty) || 0),
+            cs_id: item.cs_id || "", // Capture CS ID for updating is_po_generated status
           }));
           setItems(mappedItems);
         } else {
@@ -508,6 +510,80 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
         throw new Error("Failed to create PO item records");
       }
       console.log("PO items created successfully");
+
+      // Step 4: Update is_po_generated status in CS details for quotation source type
+      if (sourceType === "quotation") {
+        const csUpdatePromises = items
+          .filter((item) => item.cs_id) // Only items with cs_id (from quotation)
+          .map(async (item) => {
+            try {
+              const updateResponse = await axios.patch(
+                `${import.meta.env.VITE_API_BASE_URL}/cs-details/${item.cs_id}/po-status`,
+                { is_po_generated: true }
+              );
+              
+              if (!updateResponse.data.success) {
+                console.warn(`Failed to update PO status for CS ID: ${item.cs_id}`);
+              } else {
+                console.log(`PO status updated successfully for CS ID: ${item.cs_id}`);
+              }
+            } catch (updateError) {
+              console.error(`Error updating PO status for CS ID: ${item.cs_id}`, updateError);
+              // Don't throw error here to prevent rollback of successful PO creation
+            }
+          });
+
+        // Wait for all updates to complete
+        if (csUpdatePromises.length > 0) {
+          await Promise.allSettled(csUpdatePromises);
+          console.log("CS details PO status updates completed");
+        }
+      }
+
+      // Step 5: Create payment terms records if any payment terms exist
+      if (paymentTerms.length > 0 && sourceType === "quotation") {
+        try {
+          const paymentTermsPayload = paymentTerms.map((term) => {
+            // Parse amount to determine if it's percentage or fixed amount
+            let charges_amount = 0;
+            let charges_percent = 0;
+            
+            if (term.amount.includes('%')) {
+              charges_percent = parseFloat(term.amount.replace('%', '')) || 0;
+            } else if (term.amount.includes('₹')) {
+              charges_amount = parseFloat(term.amount.replace('₹', '').replace(',', '')) || 0;
+            } else {
+              // Try to parse as number, assume it's amount if no special characters
+              const numValue = parseFloat(term.amount) || 0;
+              charges_amount = numValue;
+            }
+
+            return {
+              po_id: poId,
+              payment_terms_type: term.terms,
+              charges_amount,
+              charges_percent,
+              note: term.reason || ""
+            };
+          });
+
+          console.log("Creating payment terms with payload:", paymentTermsPayload);
+          const paymentTermsResponse = await axios.post(
+            `${import.meta.env.VITE_API_BASE_URL}/purchase-order-payment-terms/bulk`,
+            paymentTermsPayload
+          );
+
+          if (!paymentTermsResponse.data.success) {
+            console.warn("Failed to create payment terms:", paymentTermsResponse.data.devMessage);
+            // Don't throw error to prevent rollback of successful PO creation
+          } else {
+            console.log("Payment terms created successfully:", paymentTermsResponse.data.data);
+          }
+        } catch (paymentTermsError) {
+          console.error("Error creating payment terms:", paymentTermsError);
+          // Don't throw error here to prevent rollback of successful PO creation
+        }
+      }
 
       alert("Purchase Order created successfully!");
       onClose();
