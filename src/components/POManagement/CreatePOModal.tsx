@@ -498,6 +498,7 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
         rate: item.rate,
         notes: "",
         qs_approved: false,
+        vendor_id: formData.selectedVendor
       }));
 
       console.log("Creating PO items with payload:", itemsPayload);
@@ -540,50 +541,50 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
         }
       }
 
-      // Step 5: Create payment terms records if any payment terms exist
-      if (paymentTerms.length > 0 && sourceType === "quotation") {
-        try {
-          const paymentTermsPayload = paymentTerms.map((term) => {
-            // Parse amount to determine if it's percentage or fixed amount
-            let charges_amount = 0;
-            let charges_percent = 0;
+      // // Step 5: Create payment terms records if any payment terms exist
+      // if (paymentTerms.length > 0 && sourceType === "quotation") {
+      //   try {
+      //     const paymentTermsPayload = paymentTerms.map((term) => {
+      //       // Parse amount to determine if it's percentage or fixed amount
+      //       let charges_amount = 0;
+      //       let charges_percent = 0;
             
-            if (term.amount.includes('%')) {
-              charges_percent = parseFloat(term.amount.replace('%', '')) || 0;
-            } else if (term.amount.includes('₹')) {
-              charges_amount = parseFloat(term.amount.replace('₹', '').replace(',', '')) || 0;
-            } else {
-              // Try to parse as number, assume it's amount if no special characters
-              const numValue = parseFloat(term.amount) || 0;
-              charges_amount = numValue;
-            }
+      //       if (term.amount.includes('%')) {
+      //         charges_percent = parseFloat(term.amount.replace('%', '')) || 0;
+      //       } else if (term.amount.includes('₹')) {
+      //         charges_amount = parseFloat(term.amount.replace('₹', '').replace(',', '')) || 0;
+      //       } else {
+      //         // Try to parse as number, assume it's amount if no special characters
+      //         const numValue = parseFloat(term.amount) || 0;
+      //         charges_amount = numValue;
+      //       }
 
-            return {
-              po_id: poId,
-              payment_terms_type: term.terms,
-              charges_amount,
-              charges_percent,
-              note: term.reason || ""
-            };
-          });
+      //       return {
+      //         po_id: poId,
+      //         payment_terms_type: term.terms,
+      //         charges_amount,
+      //         charges_percent,
+      //         note: term.reason || ""
+      //       };
+      //     });
 
-          console.log("Creating payment terms with payload:", paymentTermsPayload);
-          const paymentTermsResponse = await axios.post(
-            `${import.meta.env.VITE_API_BASE_URL}/purchase-order-payment-terms/bulk`,
-            paymentTermsPayload
-          );
+      //     console.log("Creating payment terms with payload:", paymentTermsPayload);
+      //     const paymentTermsResponse = await axios.post(
+      //       `${import.meta.env.VITE_API_BASE_URL}/purchase-order-payment-terms/bulk`,
+      //       paymentTermsPayload
+      //     );
 
-          if (!paymentTermsResponse.data.success) {
-            console.warn("Failed to create payment terms:", paymentTermsResponse.data.devMessage);
-            // Don't throw error to prevent rollback of successful PO creation
-          } else {
-            console.log("Payment terms created successfully:", paymentTermsResponse.data.data);
-          }
-        } catch (paymentTermsError) {
-          console.error("Error creating payment terms:", paymentTermsError);
-          // Don't throw error here to prevent rollback of successful PO creation
-        }
-      }
+      //     if (!paymentTermsResponse.data.success) {
+      //       console.warn("Failed to create payment terms:", paymentTermsResponse.data.devMessage);
+      //       // Don't throw error to prevent rollback of successful PO creation
+      //     } else {
+      //       console.log("Payment terms created successfully:", paymentTermsResponse.data.data);
+      //     }
+      //   } catch (paymentTermsError) {
+      //     console.error("Error creating payment terms:", paymentTermsError);
+      //     // Don't throw error here to prevent rollback of successful PO creation
+      //   }
+      // }
 
       alert("Purchase Order created successfully!");
       onClose();
@@ -963,7 +964,7 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
         </div>
 
         {/* Payment Terms */}
-        <div>
+        {/* <div>
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold text-gray-900">
               Vendor Payment Terms
@@ -1091,7 +1092,7 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
               </div>
             )}
           </div>
-        </div>
+        </div> */}
 
         {/* Item Details */}
         <div>
