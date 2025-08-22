@@ -6,6 +6,7 @@ import {
   Edit,
   CheckCircle,
   XCircle,
+  FileText,
   Download,
   Filter,
 } from "lucide-react";
@@ -128,6 +129,7 @@ const POManagement: React.FC = () => {
           paymentTerms: po.payment_terms || [], // This would come from a separate payment terms table
           warehouse_details: [],
           payment_terms: [],
+
         }));
         setPurchaseOrders(mappedPOs);
       }
@@ -172,6 +174,7 @@ const POManagement: React.FC = () => {
     try {
       const response = await axios.get(
         `${import.meta.env.VITE_API_BASE_URL}/purchase-order/${po.id}`
+
       );
       if (response.data?.data) {
         const apiData = response.data.data;
@@ -240,6 +243,7 @@ const POManagement: React.FC = () => {
             amount: term.charges_amount,
             reason: term.note,
           })),
+
         };
 
         setSelectedPO(detailedPO);

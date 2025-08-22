@@ -20,6 +20,7 @@ interface PaymentTerm {
   terms: string;
   amount: string;
   reason: string;
+  isFromQuotation?: boolean; // Flag to identify if term is from quotation API
 }
 
 interface POItem {
@@ -31,6 +32,7 @@ interface POItem {
   rate: number;
   quantity: number;
   totalPrice: number;
+  cs_id?: string; // CS ID for quotation-sourced items
 }
 
 const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
@@ -69,6 +71,7 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
     },
   ]);
 
+
   const [items, setItems] = useState<POItem[]>([]);
 
   // Fetch data on component mount
@@ -78,6 +81,7 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
       if (sourceType === "quotation") {
         fetchApprovedRFQs();
       } else {
+        fetchWarehouses();
         fetchApprovedIndents();
       }
     }
@@ -92,6 +96,8 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
         const mappedRFQs = response.data.data.map((rfq: any) => ({
           id: rfq.id,
           name: `${rfq.rfq_number} - ${rfq.note || "RFQ"}`,
+          vendors: rfq.vendors || [],
+          warehouses: rfq.warehouses || [],
         }));
         setRfqs(mappedRFQs);
       }
@@ -121,19 +127,48 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
 
   const fetchRFQVendors = async (rfqId: string) => {
     try {
-      const response = await axios.get(
-        `${import.meta.env.VITE_API_BASE_URL}/rfq-vendor?rfq_id=${rfqId}`
-      );
-      if (response.data?.data) {
-        const mappedVendors = response.data.data.map((vendor: any) => ({
-          id: vendor.id,
-          name: vendor.vendor_name,
-          address: vendor.vendor_address || "", // From joined vendor table
-        }));
-        setVendors(mappedVendors);
+
+      // Get vendors from the already fetched RFQ data
+      const selectedRFQ = rfqs.find((rfq) => rfq.id === rfqId);
+      if (selectedRFQ && selectedRFQ.vendors) {
+        // Get unique vendors from the RFQ response
+        const uniqueVendors = selectedRFQ.vendors.reduce(
+          (acc: any[], vendor: any) => {
+            const existingVendor = acc.find((v) => v.id === vendor.vendor_id);
+            if (!existingVendor) {
+              acc.push({
+                id: vendor.vendor_id,
+                name: vendor.business_name,
+                address: "", // Address not available in RFQ vendor response
+                bankName: vendor.bank_name || "",
+                gstNumber: vendor.gst_number || "",
+                accountNumber: vendor.bank_account_number || "",
+                ifscCode: vendor.ifsc_code || "",
+                panNumber: vendor.pan_number || "",
+                tanNumber: vendor.tan_number || "",
+                branchName: vendor.branch_name || "",
+              });
+            }
+            return acc;
+          },
+          []
+        );
+        setVendors(uniqueVendors);
+
+        // Also update warehouses for selected RFQ
+        if (selectedRFQ.warehouses) {
+          const mappedWarehouses = selectedRFQ.warehouses.map(
+            (warehouse: any) => ({
+              id: warehouse.warehouse_id,
+              name: warehouse.warehouse_name,
+              address: warehouse.address || "",
+            })
+          );
+          setWarehouses(mappedWarehouses);
+        }
       }
     } catch (err) {
-      console.error("Error fetching RFQ vendors:", err);
+      console.error("Error processing RFQ vendors:", err);
     }
   };
 
@@ -166,6 +201,7 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
     try {
       const response = await axios.get(
         `${import.meta.env.VITE_IMS_API_BASE_URL}/warehouse`
+
       );
       if (response.data?.data) {
         const mappedWarehouses = response.data.data.map((warehouse: any) => ({
@@ -203,12 +239,96 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
       console.error("Error fetching indent items:", err);
     }
   };
+  
+ const fetchVendorQuotationDetails = async (
+    vendorId: string,
+    rfqId: string
+  ) => {
+    try {
+      setLoading(true);
+      const response = await axios.get(
+        `${
+          import.meta.env.VITE_API_BASE_URL
+        }/vendor-quotation/vendor-quotation-with-cs`,
+        {
+          params: {
+            vendor_id: vendorId,
+            rfq_id: rfqId,
+          },
+        }
+      );
+
+      if (response.data?.success && response.data?.data) {
+        const { payment_terms, cs_details } = response.data.data;
+
+        // Populate payment terms if available (non-editable)
+        if (payment_terms && payment_terms.length > 0) {
+          const mappedPaymentTerms = payment_terms.map((term: any) => ({
+            id: term.id,
+            terms: term.quotation_payment_terms_type || "",
+            amount: term.charges_percent
+              ? `${term.charges_percent}%`
+              : term.charges_amount
+              ? `₹${term.charges_amount}`
+              : "",
+            reason: term.note || "",
+            isFromQuotation: true, // Mark as from quotation for non-editable display
+          }));
+          setPaymentTerms(mappedPaymentTerms);
+        } else {
+          // No payment terms in successful response, clear the state
+          setPaymentTerms([]);
+        }
+
+        // Populate items from cs_details if available
+        if (cs_details && cs_details.length > 0) {
+          const mappedItems = cs_details.map((item: any, index: number) => ({
+            id: item.item_id || `item-${index}`,
+            hsnCode: item.hsn_code || "",
+            itemCode: item.item_code || "",
+            itemName: item.item_name || "",
+            uom: item.uom_name || "",
+            rate: parseFloat(item.rate) || 0,
+            quantity: parseInt(item.selected_qty) || 0,
+            totalPrice:
+              (parseFloat(item.rate) || 0) * (parseInt(item.selected_qty) || 0),
+            cs_id: item.cs_id || "", // Capture CS ID for updating is_po_generated status
+          }));
+          setItems(mappedItems);
+        } else {
+          // No items in successful response, clear the state
+          setItems([]);
+        }
+      } else {
+        // API returned unsuccessful response (404, etc.) - clear payment terms and items for quotation source
+        console.log("No vendor quotation data found or API returned error");
+        setPaymentTerms([]);
+        setItems([]);
+      }
+    } catch (error) {
+      console.error("Error fetching vendor quotation details:", error);
+      // Clear payment terms and items when API call fails for quotation source
+      setPaymentTerms([]);
+      setItems([]);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   if (!isOpen) return null;
 
   // Handle RFQ selection to fetch vendors
   const handleRFQChange = (rfqId: string) => {
-    setFormData({ ...formData, selectedRFQ: rfqId });
+    setFormData({
+      ...formData,
+      selectedRFQ: rfqId,
+      selectedVendor: "", // Reset vendor selection
+    });
+
+    // Reset payment terms and items to empty when changing RFQ
+    setPaymentTerms([]);
+    setItems([]);
+
     if (rfqId) {
       fetchRFQVendors(rfqId);
     }
@@ -224,7 +344,9 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
       selectedVendor: "",
     });
     setVendors([]);
-    setItems([]); // Clear items when switching source types
+    // Reset payment terms and items to empty when changing source type
+    setPaymentTerms([]);
+    setItems([]);
 
     if (type === "indent") {
       fetchApprovedVendors();
@@ -239,17 +361,28 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
     }
   };
 
-  const handleVendorChange = (vendorId: string) => {
+  const handleVendorChange = async (vendorId: string) => {
     const vendor = vendors.find((v) => v.id === vendorId);
     setFormData({
       ...formData,
       selectedVendor: vendorId,
       vendorAddress: vendor?.address || "",
+
+      // Auto-populate vendor bank details from RFQ data
       bankName: vendor?.bankName || "",
-      gstNo: vendor?.gstNo || "",
-      accountNo: vendor?.accountNo || "",
+      gstNo: vendor?.gstNumber || "",
+      accountNo: vendor?.accountNumber || "",
       ifscCode: vendor?.ifscCode || "",
+      // Keep tax fields empty for user input
+      igst: 0,
+      sgst: 0,
+      cgst: 0,
     });
+
+    // If source type is quotation, fetch vendor quotation details
+    if (sourceType === "quotation" && formData.selectedRFQ && vendorId) {
+      await fetchVendorQuotationDetails(vendorId, formData.selectedRFQ);
+    }
   };
 
   const handleWarehouseChange = (warehouseId: string) => {
@@ -262,16 +395,28 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
   };
 
   const handleAddPaymentTerm = () => {
+    // Only allow adding new terms if not using quotation payment terms
+    const hasQuotationTerms = paymentTerms.some((term) => term.isFromQuotation);
+    if (hasQuotationTerms && sourceType === "quotation") {
+      return; // Don't allow adding terms when using quotation terms
+    }
+
     const newTerm: PaymentTerm = {
       id: Date.now().toString(),
       terms: "",
       amount: "",
       reason: "",
+      isFromQuotation: false,
     };
     setPaymentTerms([...paymentTerms, newTerm]);
   };
 
   const handleDeletePaymentTerm = (id: string) => {
+    // Don't allow deleting quotation terms
+    const termToDelete = paymentTerms.find((term) => term.id === id);
+    if (termToDelete?.isFromQuotation) {
+      return;
+    }
     setPaymentTerms(paymentTerms.filter((term) => term.id !== id));
   };
 
@@ -281,9 +426,13 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
     value: string
   ) => {
     setPaymentTerms(
-      paymentTerms.map((term) =>
-        term.id === id ? { ...term, [field]: value } : term
-      )
+
+      paymentTerms.map((term) => {
+        if (term.id === id && !term.isFromQuotation) {
+          return { ...term, [field]: value };
+        }
+        return term;
+      })
     );
   };
 
@@ -294,7 +443,12 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
   ) => {
     setItems(
       items.map((item) => {
-        if (item.item_id === itemId) {
+// <<<<<<< feature/mijanur/po
+//        if (item?.item_id === itemId || item?.id === itemId) {
+// =======
+//        if (item.id === itemId) {
+// >>>>>>> main
+  if (item?.item_id === itemId || item?.id === itemId) {
           const updatedItem = { ...item, [field]: value };
           updatedItem.totalPrice = updatedItem.rate * updatedItem.quantity;
           return updatedItem;
@@ -315,9 +469,199 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
   const handleSave = async () => {
     if (!formData.selectedVendor || items.length === 0) {
       alert("Please select vendor and ensure items are available");
+
       return;
     }
 
+    // For quotation source type, validate warehouse selection
+    if (
+      sourceType === "quotation" &&
+      formData.selectedWarehouses.length === 0
+    ) {
+      alert("Please select at least one delivery warehouse");
+      return;
+    }
+
+    if (sourceType === "quotation") {
+      await handleSaveQuotationPO();
+    } else {
+      await handleSaveIndentPO();
+    }
+  };
+
+  const handleSaveQuotationPO = async () => {
+    setLoading(true);
+    try {
+      // Step 1: Create PO record
+      const poPayload = {
+        po_origin_id: formData.selectedRFQ,
+        po_origin_type: "RFQ",
+        po_uri: "",
+        vendor_id: formData.selectedVendor,
+        approved_by: null,
+        is_mailed: false,
+        mail_sent: null,
+        comments: "",
+        reference_purchase_id: null,
+        po_type: "",
+        po_date: formData.poDate,
+        bank_name: formData.bankName,
+        account_no: formData.accountNo,
+        ifsc_code: formData.ifscCode,
+        sgst: formData.sgst,
+        igst: formData.igst,
+        project_id: null,
+        lookup_approval_status: null,
+        approved_on: null,
+        gst: formData.gstNo,
+        total_amount: totalAmount,
+        cgst: formData.cgst,
+        inspection_status: false,
+        cs_id: null,
+      };
+
+      console.log("Creating PO with payload:", poPayload);
+      const poResponse = await axios.post(
+        `${import.meta.env.VITE_API_BASE_URL}/purchase-order`,
+        poPayload
+      );
+
+      if (!poResponse.data.success) {
+        throw new Error("Failed to create PO");
+      }
+
+      const createdPO = poResponse.data.data;
+      const poId = createdPO.id;
+      console.log("PO created successfully with ID:", poId);
+
+      // Step 2: Create PO warehouse records for all selected warehouses
+      if (formData.selectedWarehouses.length > 0) {
+        const warehousePayload = formData.selectedWarehouses.map(
+          (warehouseId) => ({
+            po_id: poId,
+            warehouse_id: warehouseId,
+          })
+        );
+
+        console.log("Creating PO warehouses with payload:", warehousePayload);
+        const warehouseResponse = await axios.post(
+          `${import.meta.env.VITE_API_BASE_URL}/purchase-order-warehouse/bulk`,
+          warehousePayload
+        );
+
+        if (!warehouseResponse.data.success) {
+          throw new Error("Failed to create PO warehouse records");
+        }
+        console.log("PO warehouses created successfully");
+      }
+
+      // Step 3: Create PO item records for all items
+      const itemsPayload = items.map((item) => ({
+        po_id: poId,
+        item_id: item.id,
+        qty: item.quantity,
+        rate: item.rate,
+        notes: "",
+        qs_approved: false,
+        vendor_id: formData.selectedVendor
+      }));
+
+      console.log("Creating PO items with payload:", itemsPayload);
+      const itemsResponse = await axios.post(
+        `${import.meta.env.VITE_API_BASE_URL}/purchase-order-details/bulk`,
+        itemsPayload
+      );
+
+      if (!itemsResponse.data.success) {
+        throw new Error("Failed to create PO item records");
+      }
+      console.log("PO items created successfully");
+
+      // Step 4: Update is_po_generated status in CS details for quotation source type
+      if (sourceType === "quotation") {
+        const csUpdatePromises = items
+          .filter((item) => item.cs_id) // Only items with cs_id (from quotation)
+          .map(async (item) => {
+            try {
+              const updateResponse = await axios.patch(
+                `${import.meta.env.VITE_API_BASE_URL}/cs-details/${item.cs_id}/po-status`,
+                { is_po_generated: true }
+              );
+              
+              if (!updateResponse.data.success) {
+                console.warn(`Failed to update PO status for CS ID: ${item.cs_id}`);
+              } else {
+                console.log(`PO status updated successfully for CS ID: ${item.cs_id}`);
+              }
+            } catch (updateError) {
+              console.error(`Error updating PO status for CS ID: ${item.cs_id}`, updateError);
+              // Don't throw error here to prevent rollback of successful PO creation
+            }
+          });
+
+        // Wait for all updates to complete
+        if (csUpdatePromises.length > 0) {
+          await Promise.allSettled(csUpdatePromises);
+          console.log("CS details PO status updates completed");
+        }
+      }
+
+      // // Step 5: Create payment terms records if any payment terms exist
+      // if (paymentTerms.length > 0 && sourceType === "quotation") {
+      //   try {
+      //     const paymentTermsPayload = paymentTerms.map((term) => {
+      //       // Parse amount to determine if it's percentage or fixed amount
+      //       let charges_amount = 0;
+      //       let charges_percent = 0;
+            
+      //       if (term.amount.includes('%')) {
+      //         charges_percent = parseFloat(term.amount.replace('%', '')) || 0;
+      //       } else if (term.amount.includes('₹')) {
+      //         charges_amount = parseFloat(term.amount.replace('₹', '').replace(',', '')) || 0;
+      //       } else {
+      //         // Try to parse as number, assume it's amount if no special characters
+      //         const numValue = parseFloat(term.amount) || 0;
+      //         charges_amount = numValue;
+      //       }
+
+      //       return {
+      //         po_id: poId,
+      //         payment_terms_type: term.terms,
+      //         charges_amount,
+      //         charges_percent,
+      //         note: term.reason || ""
+      //       };
+      //     });
+
+      //     console.log("Creating payment terms with payload:", paymentTermsPayload);
+      //     const paymentTermsResponse = await axios.post(
+      //       `${import.meta.env.VITE_API_BASE_URL}/purchase-order-payment-terms/bulk`,
+      //       paymentTermsPayload
+      //     );
+
+      //     if (!paymentTermsResponse.data.success) {
+      //       console.warn("Failed to create payment terms:", paymentTermsResponse.data.devMessage);
+      //       // Don't throw error to prevent rollback of successful PO creation
+      //     } else {
+      //       console.log("Payment terms created successfully:", paymentTermsResponse.data.data);
+      //     }
+      //   } catch (paymentTermsError) {
+      //     console.error("Error creating payment terms:", paymentTermsError);
+      //     // Don't throw error here to prevent rollback of successful PO creation
+      //   }
+      // }
+
+      alert("Purchase Order created successfully!");
+      onClose();
+    } catch (error) {
+      console.error("Error creating PO:", error);
+      alert("Error creating Purchase Order. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSaveIndentPO = async () => {
     setLoading(true);
     try {
       // For Indent Details section - use new API structure
@@ -439,6 +783,7 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
         } else {
           alert("Failed to create Purchase Order");
         }
+
       }
     } catch (error) {
       console.error("Error creating PO:", error);
@@ -542,6 +887,7 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
                 <select
                   value={formData.selectedIndent}
                   onChange={(e) => handleIndentChange(e.target.value)}
+
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
                   <option value="">Select Indent</option>
@@ -561,16 +907,28 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
               <select
                 value={formData.selectedVendor}
                 onChange={(e) => handleVendorChange(e.target.value)}
-                disabled={sourceType === "quotation" && !formData.selectedRFQ}
+                disabled={
+                  (sourceType === "quotation" && !formData.selectedRFQ) ||
+                  loading
+                }
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
               >
-                <option value="">Select Vendor</option>
+                <option value="">
+                  {loading ? "Loading..." : "Select Vendor"}
+                </option>
                 {availableVendors.map((vendor) => (
                   <option key={vendor.id} value={vendor.id}>
                     {vendor.name}
                   </option>
                 ))}
               </select>
+              {loading &&
+                sourceType === "quotation" &&
+                formData.selectedVendor && (
+                  <p className="text-sm text-blue-600 mt-1">
+                    Loading quotation details...
+                  </p>
+                )}
             </div>
 
             <div className="md:col-span-3">
@@ -624,6 +982,7 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
             </div>
           </div>
 
+
           <div className="md:col-span-3">
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Vendor Address
@@ -647,11 +1006,7 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
                   const warehouse = warehouses.find(
                     (w) => w.id === warehouseId
                   );
-                  const mockAddress = `${
-                    warehouse?.name
-                  } - 123 Industrial Area, Sector ${warehouseId.slice(
-                    -1
-                  )}, City - 40000${warehouseId.slice(-1)}`;
+
                   return (
                     <div
                       key={warehouseId}
@@ -660,7 +1015,9 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
                       <p className="font-medium text-gray-900">
                         {warehouse?.name}
                       </p>
-                      <p className="text-sm text-gray-600">{mockAddress}</p>
+                      <p className="text-sm text-gray-600">
+                        {warehouse?.address || "Address not available"}
+                      </p>
                     </div>
                   );
                 })}
@@ -682,10 +1039,8 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
               <input
                 type="text"
                 value={formData.bankName}
-                onChange={(e) =>
-                  setFormData({ ...formData, bankName: e.target.value })
-                }
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                readOnly
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-600"
               />
             </div>
 
@@ -696,10 +1051,9 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
               <input
                 type="text"
                 value={formData.gstNo}
-                onChange={(e) =>
-                  setFormData({ ...formData, gstNo: e.target.value })
-                }
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+
+                readOnly
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-600"
               />
             </div>
 
@@ -710,10 +1064,8 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
               <input
                 type="text"
                 value={formData.accountNo}
-                onChange={(e) =>
-                  setFormData({ ...formData, accountNo: e.target.value })
-                }
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                readOnly
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-600"
               />
             </div>
 
@@ -724,10 +1076,9 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
               <input
                 type="text"
                 value={formData.ifscCode}
-                onChange={(e) =>
-                  setFormData({ ...formData, ifscCode: e.target.value })
-                }
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+
+                readOnly
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-600"
               />
             </div>
 
@@ -775,13 +1126,19 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
           </div>
         </div>
 
-        {/* Payment Terms - Only show for Quotation source type */}
-        {sourceType === "quotation" && (
-          <div>
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900">
-                Vendor Payment Terms
-              </h3>
+        {/* Payment Terms */}
+        {/* <div>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold text-gray-900">
+              Vendor Payment Terms
+              {paymentTerms.some((term) => term.isFromQuotation) && (
+                <span className="ml-2 text-sm text-blue-600 font-normal">
+                  (From Quotation)
+                </span>
+              )}
+            </h3>
+            {(!paymentTerms.some((term) => term.isFromQuotation) ||
+              sourceType !== "quotation") && (
               <button
                 onClick={handleAddPaymentTerm}
                 className="flex items-center space-x-2 px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors text-sm"
@@ -789,9 +1146,11 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
                 <Plus className="w-4 h-4" />
                 <span>Add Term</span>
               </button>
-            </div>
+            )}
+          </div>
 
-            <div className="overflow-x-auto">
+          <div className="overflow-x-auto">
+            {paymentTerms.length > 0 ? (
               <table className="w-full border border-gray-200 rounded-lg">
                 <thead className="bg-gray-50">
                   <tr>
@@ -823,7 +1182,16 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
                               e.target.value
                             )
                           }
+// <<<<<<< feature/mijanur/po
                           className="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+// =======
+                          readOnly={term.isFromQuotation}
+                          className={`w-full px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 ${
+                            term.isFromQuotation
+                              ? "bg-gray-50 text-gray-600 cursor-not-allowed"
+                              : ""
+                          }`}
+// >>>>>>> main
                         />
                       </td>
                       <td className="py-3 px-4">
@@ -837,7 +1205,16 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
                               e.target.value
                             )
                           }
+// <<<<<<< feature/mijanur/po
                           className="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+// =======
+                          readOnly={term.isFromQuotation}
+                          className={`w-full px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 ${
+                            term.isFromQuotation
+                              ? "bg-gray-50 text-gray-600 cursor-not-allowed"
+                              : ""
+                          }`}
+// >>>>>>> main
                         />
                       </td>
                       <td className="py-3 px-4">
@@ -851,24 +1228,50 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
                               e.target.value
                             )
                           }
+// <<<<<<< feature/mijanur/po
                           className="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+// =======
+                          readOnly={term.isFromQuotation}
+                          className={`w-full px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 ${
+                            term.isFromQuotation
+                              ? "bg-gray-50 text-gray-600 cursor-not-allowed"
+                              : ""
+                          }`}
+// >>>>>>> main
                         />
                       </td>
                       <td className="py-3 px-4 text-center">
-                        <button
-                          onClick={() => handleDeletePaymentTerm(term.id)}
-                          className="text-red-600 hover:text-red-800 transition-colors"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        {!term.isFromQuotation ? (
+                          <button
+                            onClick={() => handleDeletePaymentTerm(term.id)}
+                            className="text-red-600 hover:text-red-800 transition-colors"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        ) : (
+                          <span className="text-gray-400 text-xs">N/A</span>
+                        )}
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
-            </div>
+            ) : (
+              <div className="text-center py-8 text-gray-500 border border-gray-200 rounded-lg bg-gray-50">
+                <p>No payment terms available</p>
+                <p className="text-sm mt-1">
+                  {sourceType === "quotation"
+                    ? "Select a vendor to load payment terms from quotation"
+                    : "Click 'Add Term' to add payment terms"}
+                </p>
+              </div>
+            )}
           </div>
+// <<<<<<< feature/mijanur/po
         )}
+// =======
+        </div> */}
+// >>>>>>> main
 
         {/* Item Details */}
         <div>
@@ -889,6 +1292,7 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
           </div>
 
           <div className="overflow-x-auto">
+<!-- <<<<<<< feature/mijanur/po -->
             <table className="w-full border border-gray-200 rounded-lg">
               <thead className="bg-gray-50">
                 <tr>
@@ -959,6 +1363,93 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
                 ))}
               </tbody>
             </table>
+<!-- ======= -->
+            {filteredItems.length > 0 ? (
+              <table className="w-full border border-gray-200 rounded-lg">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="text-left py-3 px-4 font-medium text-gray-900">
+                      HSN Code
+                    </th>
+                    <th className="text-left py-3 px-4 font-medium text-gray-900">
+                      Item Code
+                    </th>
+                    <th className="text-left py-3 px-4 font-medium text-gray-900">
+                      Item Name
+                    </th>
+                    <th className="text-left py-3 px-4 font-medium text-gray-900">
+                      UOM
+                    </th>
+                    <th className="text-left py-3 px-4 font-medium text-gray-900">
+                      Rate
+                    </th>
+                    <th className="text-left py-3 px-4 font-medium text-gray-900">
+                      Quantity to be Purchased
+                    </th>
+                    <th className="text-left py-3 px-4 font-medium text-gray-900">
+                      Total Price
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredItems.map((item) => (
+                    <tr key={item.id} className="border-t border-gray-200">
+                      <td className="py-3 px-4 text-gray-600">
+                        {item.hsnCode}
+                      </td>
+                      <td className="py-3 px-4 font-medium text-gray-900">
+                        {item.itemCode}
+                      </td>
+                      <td className="py-3 px-4 text-gray-600">
+                        {item.itemName}
+                      </td>
+                      <td className="py-3 px-4 text-gray-600">{item.uom}</td>
+                      <td className="py-3 px-4">
+                        <input
+                          type="number"
+                          value={item.rate}
+                          onChange={(e) =>
+                            handleItemChange(
+                              item.id,
+                              "rate",
+                              Number(e.target.value)
+                            )
+                          }
+                          className="w-20 px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        />
+                      </td>
+                      <td className="py-3 px-4">
+                        <input
+                          type="number"
+                          value={item.quantity}
+                          onChange={(e) =>
+                            handleItemChange(
+                              item.id,
+                              "quantity",
+                              Number(e.target.value)
+                            )
+                          }
+                          className="w-20 px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        />
+                      </td>
+                      <td className="py-3 px-4 font-medium text-gray-900">
+                        ₹{item.totalPrice.toLocaleString()}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : (
+              <div className="text-center py-8 text-gray-500 border border-gray-200 rounded-lg bg-gray-50">
+                <p>No items available</p>
+                <p className="text-sm mt-1">
+                  {sourceType === "quotation"
+                    ? "Select a vendor to load items from quotation"
+                    : "Items will be loaded based on indent selection"}
+                </p>
+              </div>
+            )}
+<!-- >>>>>>> main -->
           </div>
         </div>
 

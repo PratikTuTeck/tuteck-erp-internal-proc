@@ -19,6 +19,8 @@ interface RFQ {
   approvedBy: string;
   approvedOn: string;
   status: "pending" | "approved" | "rejected";
+  items: any[];
+  indents: any[];
 }
 
 interface VendorQuotation {
@@ -114,7 +116,9 @@ const VendorQuotation: React.FC = () => {
           id: rfq.id,
           rfqNo: rfq.rfq_number,
           deliveryLocation: "N/A", // Will be fetched from warehouse relation
-          vendorOptions: [], // Will be fetched from rfq_vendor relation
+          vendorOptions: Array.from(
+            new Set((rfq.vendors || []).map((v: any) => v.business_name))
+          ), // Unique business names from vendors array
           rfqDate: rfq.rfq_date
             ? new Date(rfq.rfq_date).toISOString().split("T")[0]
             : "",
@@ -184,9 +188,55 @@ const VendorQuotation: React.FC = () => {
     }
   };
 
-  const handleApproveRFQ = (rfq: RFQ) => {
-    setSelectedRFQ(rfq);
-    setShowApproveRFQ(true);
+  const handleApproveRFQ = async (rfq: RFQ) => {
+    try {
+      setLoading(true);
+      setError("");
+
+      // Fetch RFQ details from the API
+      const response = await axios.get(
+        `${import.meta.env.VITE_API_BASE_URL}/rfq/${rfq.id}`
+      );
+
+      if (response.data?.data) {
+        const apiData = response.data.data;
+
+        // Format the data as required
+        const formattedRFQ: RFQ = {
+          id: apiData.id,
+          rfqNo: apiData.rfq_number,
+          rfqDate: apiData.rfq_date
+            ? new Date(apiData.rfq_date).toISOString().split("T")[0]
+            : "",
+          endDate: apiData.rfq_end_date
+            ? new Date(apiData.rfq_end_date).toISOString().split("T")[0]
+            : "",
+          approvedBy: apiData.approved_by || "",
+          approvedOn: apiData.approved_on
+            ? new Date(apiData.approved_on).toISOString().split("T")[0]
+            : "",
+          status: apiData.approval_status?.toLowerCase() || "pending",
+          deliveryLocation:
+            apiData.warehouses
+              .map((warehouse: any) => warehouse.warehouse_name)
+              .join(", ") || "N/A",
+          vendorOptions: Array.from(
+            new Set(apiData.vendors.map((vendor: any) => vendor.business_name))
+          ),
+          items: apiData.items || [],
+          indents: apiData.indents || [],
+        };
+
+        // Update the state with the formatted data
+        setSelectedRFQ(formattedRFQ);
+        setShowApproveRFQ(true);
+      }
+    } catch (err) {
+      console.error("Error fetching RFQ details:", err);
+      setError("Failed to fetch RFQ details");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleApproveQuotation = async (quotation: VendorQuotation) => {
@@ -281,7 +331,12 @@ const VendorQuotation: React.FC = () => {
         <div className="flex items-center space-x-4">
           <button
             onClick={() => setShowCreateRFQ(true)}
-            className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            disabled={loading}
+            className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors ${
+              loading
+                ? "bg-gray-400 text-white cursor-not-allowed"
+                : "bg-blue-600 text-white hover:bg-blue-700"
+            }`}
           >
             <Plus className="w-4 h-4" />
             <span>Create RFQ</span>
@@ -305,8 +360,13 @@ const VendorQuotation: React.FC = () => {
           <h3 className="text-lg font-semibold text-gray-900 mb-4">RFQ List</h3>
 
           {loading && (
-            <div className="flex justify-center items-center py-8">
-              <div className="text-gray-600">Loading RFQs...</div>
+            <div className="flex justify-center items-center py-12">
+              <div className="flex flex-col items-center space-y-3">
+                <div className="relative">
+                  <div className="w-10 h-10 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
+                </div>
+                <div className="text-gray-600 font-medium">Loading RFQs...</div>
+              </div>
             </div>
           )}
 
@@ -316,103 +376,136 @@ const VendorQuotation: React.FC = () => {
             </div>
           )}
 
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-50 border-b border-gray-200">
-                <tr>
-                  <th className="text-left py-3 px-4 font-medium text-gray-900">
-                    RFQ No.
-                  </th>
-                  <th className="text-left py-3 px-4 font-medium text-gray-900">
-                    Delivery Location
-                  </th>
-                  <th className="text-left py-3 px-4 font-medium text-gray-900">
-                    Vendor Options
-                  </th>
-                  <th className="text-left py-3 px-4 font-medium text-gray-900">
-                    RFQ Date
-                  </th>
-                  <th className="text-left py-3 px-4 font-medium text-gray-900">
-                    End Date
-                  </th>
-                  <th className="text-left py-3 px-4 font-medium text-gray-900">
-                    Approved By
-                  </th>
-                  <th className="text-left py-3 px-4 font-medium text-gray-900">
-                    Approved On
-                  </th>
-                  <th className="text-left py-3 px-4 font-medium text-gray-900">
-                    Status
-                  </th>
-                  <th className="text-center py-3 px-4 font-medium text-gray-900">
-                    Action
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredRFQs.map((rfq) => (
-                  <tr
-                    key={rfq.id}
-                    className="border-b border-gray-200 hover:bg-gray-50"
-                  >
-                    <td className="py-4 px-4 font-medium text-gray-900">
-                      {rfq.rfqNo}
-                    </td>
-                    <td className="py-4 px-4 text-gray-600">
-                      {rfq.deliveryLocation}
-                    </td>
-                    <td className="py-4 px-4 text-gray-600">
-                      {rfq.vendorOptions.join(", ")}
-                    </td>
-                    <td className="py-4 px-4 text-gray-600">{rfq.rfqDate}</td>
-                    <td className="py-4 px-4 text-gray-600">{rfq.endDate}</td>
-                    <td className="py-4 px-4 text-gray-600">
-                      {rfq.approvedBy || "-"}
-                    </td>
-                    <td className="py-4 px-4 text-gray-600">
-                      {rfq.approvedOn || "-"}
-                    </td>
-                    <td className="py-4 px-4">
-                      <span
-                        className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(
-                          rfq.status
-                        )}`}
-                      >
-                        {rfq.status.charAt(0).toUpperCase() +
-                          rfq.status.slice(1)}
-                      </span>
-                    </td>
-                    <td className="py-4 px-4">
-                      <div className="flex items-center justify-center space-x-2">
-                        <button
-                          onClick={() => handleViewRFQ(rfq)}
-                          className="p-1 text-blue-600 hover:text-blue-800 transition-colors"
-                          title="View"
-                        >
-                          <Eye className="w-4 h-4" />
-                        </button>
-                        <button
-                          className="p-1 text-gray-600 hover:text-gray-800 transition-colors"
-                          title="Edit"
-                        >
-                          <Edit className="w-4 h-4" />
-                        </button>
-                        {rfq.status === "pending" && (
-                          <button
-                            onClick={() => handleApproveRFQ(rfq)}
-                            className="p-1 text-green-600 hover:text-green-800 transition-colors"
-                            title="Approve"
-                          >
-                            <CheckCircle className="w-4 h-4" />
-                          </button>
-                        )}
-                      </div>
-                    </td>
+          {!loading && (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50 border-b border-gray-200">
+                  <tr>
+                    <th className="text-left py-3 px-4 font-medium text-gray-900">
+                      RFQ No.
+                    </th>
+                    {/* <th className="text-left py-3 px-4 font-medium text-gray-900">
+                      Delivery Location
+                    </th> */}
+                    <th className="text-left py-3 px-4 font-medium text-gray-900">
+                      Vendor Options
+                    </th>
+                    <th className="text-left py-3 px-4 font-medium text-gray-900">
+                      RFQ Date
+                    </th>
+                    <th className="text-left py-3 px-4 font-medium text-gray-900">
+                      End Date
+                    </th>
+                    <th className="text-left py-3 px-4 font-medium text-gray-900">
+                      Approved By
+                    </th>
+                    <th className="text-left py-3 px-4 font-medium text-gray-900">
+                      Approved On
+                    </th>
+                    <th className="text-left py-3 px-4 font-medium text-gray-900">
+                      Status
+                    </th>
+                    <th className="text-center py-3 px-4 font-medium text-gray-900">
+                      Action
+                    </th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {!loading && filteredRFQs.length === 0 && (
+                    <tr>
+                      <td colSpan={7} className="py-12 text-center">
+                        <div className="flex flex-col items-center space-y-3">
+                          <FileText className="w-12 h-12 text-gray-300" />
+                          <div className="text-gray-500 font-medium">
+                            No RFQs found
+                          </div>
+                          <div className="text-gray-400 text-sm">
+                            {searchTerm
+                              ? "Try adjusting your search criteria"
+                              : "Create your first RFQ to get started"}
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                  {!loading &&
+                    filteredRFQs.map((rfq) => (
+                      <tr
+                        key={rfq.id}
+                        className="border-b border-gray-200 hover:bg-gray-50"
+                      >
+                        <td className="py-4 px-4 font-medium text-gray-900">
+                          {rfq.rfqNo}
+                        </td>
+                        {/* <td className="py-4 px-4 text-gray-600">
+                      {rfq.deliveryLocation}
+                    </td> */}
+                        <td className="py-4 px-4 text-gray-600">
+                          {rfq.vendorOptions.join(", ")}
+                        </td>
+                        <td className="py-4 px-4 text-gray-600">
+                          {rfq.rfqDate}
+                        </td>
+                        <td className="py-4 px-4 text-gray-600">
+                          {rfq.endDate}
+                        </td>
+                        <td className="py-4 px-4 text-gray-600">
+                          {rfq.approvedBy || "-"}
+                        </td>
+                        <td className="py-4 px-4 text-gray-600">
+                          {rfq.approvedOn || "-"}
+                        </td>
+                        <td className="py-4 px-4">
+                          <span
+                            className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(
+                              rfq.status
+                            )}`}
+                          >
+                            {rfq.status.charAt(0).toUpperCase() +
+                              rfq.status.slice(1)}
+                          </span>
+                        </td>
+                        <td className="py-4 px-4">
+                          <div className="flex items-center justify-center space-x-2">
+                            <button
+                              onClick={() => handleViewRFQ(rfq)}
+                              className="p-1 text-blue-600 hover:text-blue-800 transition-colors"
+                              title="View"
+                            >
+                              <Eye className="w-4 h-4" />
+                            </button>
+                            <button
+                              className="p-1 text-gray-600 hover:text-gray-800 transition-colors"
+                              title="Edit"
+                            >
+                              <Edit className="w-4 h-4" />
+                            </button>
+                            {rfq.status === "pending" && (
+                              <button
+                                onClick={() => handleApproveRFQ(rfq)}
+                                disabled={loading}
+                                className={`p-1 transition-colors ${
+                                  loading
+                                    ? "text-gray-400 cursor-not-allowed"
+                                    : "text-green-600 hover:text-green-800"
+                                }`}
+                                title="Approve"
+                              >
+                                {loading ? (
+                                  <div className="w-4 h-4 border-2 border-gray-300 border-t-green-600 rounded-full animate-spin"></div>
+                                ) : (
+                                  <CheckCircle className="w-4 h-4" />
+                                )}
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -458,8 +551,15 @@ const VendorQuotation: React.FC = () => {
           </h3>
 
           {loading && (
-            <div className="flex justify-center items-center py-8">
-              <div className="text-gray-600">Loading quotations...</div>
+            <div className="flex justify-center items-center py-12">
+              <div className="flex flex-col items-center space-y-3">
+                <div className="relative">
+                  <div className="w-10 h-10 border-4 border-green-200 border-t-green-600 rounded-full animate-spin"></div>
+                </div>
+                <div className="text-gray-600 font-medium">
+                  Loading quotations...
+                </div>
+              </div>
             </div>
           )}
 
@@ -469,63 +569,83 @@ const VendorQuotation: React.FC = () => {
             </div>
           )}
 
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-50 border-b border-gray-200">
-                <tr>
-                  <th className="text-left py-3 px-4 font-medium text-gray-900">
-                    Quotation No.
-                  </th>
-                  <th className="text-left py-3 px-4 font-medium text-gray-900">
-                    RFQ No.
-                  </th>
-                  <th className="text-left py-3 px-4 font-medium text-gray-900">
-                    Requested By/On
-                  </th>
-                  <th className="text-left py-3 px-4 font-medium text-gray-900">
-                    Vendor
-                  </th>
-                  <th className="text-left py-3 px-4 font-medium text-gray-900">
-                    Approved By/On
-                  </th>
-                  <th className="text-left py-3 px-4 font-medium text-gray-900">
-                    Status
-                  </th>
-                  <th className="text-center py-3 px-4 font-medium text-gray-900">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredQuotations.map((quotation) => (
-                  <tr
-                    key={quotation.id}
-                    className="border-b border-gray-200 hover:bg-gray-50"
-                  >
-                    <td className="py-4 px-4 font-medium text-gray-900">
-                      {quotation.quotationNo}
-                    </td>
-                    <td className="py-4 px-4 text-gray-600">
-                      {quotation.rfqNo}
-                    </td>
-                    <td className="py-4 px-4 text-gray-600">
-                      {quotation.requestedBy} / {quotation.requestedOn}
-                    </td>
-                    <td className="py-4 px-4 text-gray-600">
-                      {quotation.vendor}
-                    </td>
-                    <td className="py-4 px-4 text-gray-600">
-                      {quotation.approvedBy
-                        ? `${quotation.approvedBy} / ${quotation.approvedOn}`
-                        : "-"}
-                    </td>
-                    <td className="py-4 px-4">
-                      <span
-                        className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(
-                          quotation.status
-                        )}`}
+          {!loading && (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50 border-b border-gray-200">
+                  <tr>
+                    <th className="text-left py-3 px-4 font-medium text-gray-900">
+                      Quotation No.
+                    </th>
+                    <th className="text-left py-3 px-4 font-medium text-gray-900">
+                      RFQ No.
+                    </th>
+                    <th className="text-left py-3 px-4 font-medium text-gray-900">
+                      Requested By/On
+                    </th>
+                    <th className="text-left py-3 px-4 font-medium text-gray-900">
+                      Vendor
+                    </th>
+                    <th className="text-left py-3 px-4 font-medium text-gray-900">
+                      Approved By/On
+                    </th>
+                    <th className="text-left py-3 px-4 font-medium text-gray-900">
+                      Status
+                    </th>
+                    <th className="text-center py-3 px-4 font-medium text-gray-900">
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {!loading && filteredQuotations.length === 0 && (
+                    <tr>
+                      <td colSpan={7} className="py-12 text-center">
+                        <div className="flex flex-col items-center space-y-3">
+                          <FileText className="w-12 h-12 text-gray-300" />
+                          <div className="text-gray-500 font-medium">
+                            No quotations found
+                          </div>
+                          <div className="text-gray-400 text-sm">
+                            {selectedRFQForQuotation
+                              ? "No quotations for selected RFQ"
+                              : "Select an RFQ to view quotations"}
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                  {!loading &&
+                    filteredQuotations.map((quotation) => (
+                      <tr
+                        key={quotation.id}
+                        className="border-b border-gray-200 hover:bg-gray-50"
                       >
-                        {quotation.status.charAt(0).toUpperCase() +
+
+                        <td className="py-4 px-4 font-medium text-gray-900">
+                          {quotation.quotationNo}
+                        </td>
+                        <td className="py-4 px-4 text-gray-600">
+                          {quotation.rfqNo}
+                        </td>
+                        <td className="py-4 px-4 text-gray-600">
+                          {quotation.requestedBy} / {quotation.requestedOn}
+                        </td>
+                        <td className="py-4 px-4 text-gray-600">
+                          {quotation.vendor}
+                        </td>
+                        <td className="py-4 px-4 text-gray-600">
+                          {quotation.approvedBy
+                            ? `${quotation.approvedBy} / ${quotation.approvedOn}`
+                            : "-"}
+                        </td>
+                        <td className="py-4 px-4">
+                          <span
+                            className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(
+                              quotation.status
+                            )}`}
+                          >
+                             {quotation.status.charAt(0).toUpperCase() +
                           quotation.status.slice(1)}
                       </span>
                     </td>
@@ -549,17 +669,18 @@ const VendorQuotation: React.FC = () => {
                             onClick={() => handleApproveQuotation(quotation)}
                             className="p-1 text-green-600 hover:text-green-800 transition-colors"
                             title="Approve"
-                          >
-                            <CheckCircle className="w-4 h-4" />
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                              >
+                                <CheckCircle className="w-4 h-4" />
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       </div>
     </div>

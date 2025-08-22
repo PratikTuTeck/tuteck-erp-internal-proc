@@ -1,6 +1,14 @@
-import React, { useState } from 'react';
-import { X, FileText, MapPin, Calendar, Users, CheckCircle, XCircle } from 'lucide-react';
-import axios from 'axios';
+import React, { useState } from "react";
+import {
+  X,
+  FileText,
+  MapPin,
+  Calendar,
+  Users,
+  CheckCircle,
+  XCircle,
+} from "lucide-react";
+import axios from "axios";
 
 interface ApproveRFQModalProps {
   isOpen: boolean;
@@ -15,56 +23,66 @@ interface ApproveRFQModalProps {
     approvedBy: string;
     approvedOn: string;
     status: string;
+    items: any[];
+    indents: any[];
   };
 }
 
-const ApproveRFQModal: React.FC<ApproveRFQModalProps> = ({ isOpen, onClose, rfq }) => {
-  const [comment, setComment] = useState('');
+const ApproveRFQModal: React.FC<ApproveRFQModalProps> = ({
+  isOpen,
+  onClose,
+  rfq,
+}) => {
+  const [comment, setComment] = useState("");
   const [loading, setLoading] = useState(false);
 
   if (!isOpen) return null;
 
   // Mock data for RFQ details
   const rfqDetails = {
-    indentId: 'IND-001',
+    indentId: Array.isArray(rfq.indents)
+      ? rfq.indents.map((indent: any) => indent.indent_number).join(", ")
+      : "",
     warehouseName: rfq.deliveryLocation,
-    warehouseAddress: '123 Industrial Area, Sector 5, City - 400001',
+    warehouseAddress: "123 Industrial Area, Sector 5, City - 400001",
     associatedVendors: rfq.vendorOptions,
-    items: [
+    items: rfq.items || [],
+    items2: [
       {
-        itemCode: 'ITM-001',
-        itemName: 'Steel Rod',
-        vendorOptions: ['Vendor X', 'Vendor Y'],
-        uom: 'Kg',
-        procureQty: 100
+        itemCode: "ITM-001",
+        itemName: "Steel Rod",
+        vendorOptions: ["Vendor X", "Vendor Y"],
+        uom: "Kg",
+        procureQty: 100,
       },
       {
-        itemCode: 'ITM-002',
-        itemName: 'Steel Plate',
-        vendorOptions: ['Vendor X', 'Vendor Y'],
-        uom: 'Kg',
-        procureQty: 50
-      }
-    ]
+        itemCode: "ITM-002",
+        itemName: "Steel Plate",
+        vendorOptions: ["Vendor X", "Vendor Y"],
+        uom: "Kg",
+        procureQty: 50,
+      },
+    ],
   };
 
   const handleApprove = async () => {
     setLoading(true);
     try {
-      const response = await axios.post(`${import.meta.env.VITE_API_BASE_URL}/rfq/decision/${rfq.id}`, {
-        approval_status: 'APPROVED',
-        comment: comment
-      });
-      
+      const response = await axios.patch(
+        `${import.meta.env.VITE_API_BASE_URL}/rfq/${
+          rfq.id
+        }/decision?status=approved`
+      );
+
       if (response.data.success) {
-        alert('RFQ approved successfully!');
+        alert("RFQ approved successfully!");
         onClose();
       } else {
-        alert('Failed to approve RFQ');
+        alert("Failed to approve RFQ");
       }
     } catch (error) {
-      console.error('Error approving RFQ:', error);
-      alert('Error approving RFQ. Please try again.');
+      console.error("Error approving RFQ:", error);
+      alert("Error approving RFQ. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -73,20 +91,21 @@ const ApproveRFQModal: React.FC<ApproveRFQModalProps> = ({ isOpen, onClose, rfq 
   const handleReject = async () => {
     setLoading(true);
     try {
-      const response = await axios.post(`${import.meta.env.VITE_API_BASE_URL}/rfq/decision/${rfq.id}`, {
-        approval_status: 'REJECTED',
-        comment: comment
-      });
-      
+      const response = await axios.patch(
+        `${import.meta.env.VITE_API_BASE_URL}/rfq/${
+          rfq.id
+        }/decision?status=rejected`
+      );
+
       if (response.data.success) {
-        alert('RFQ rejected successfully!');
+        alert("RFQ rejected successfully!");
         onClose();
       } else {
-        alert('Failed to reject RFQ');
+        alert("Failed to reject RFQ");
       }
     } catch (error) {
-      console.error('Error rejecting RFQ:', error);
-      alert('Error rejecting RFQ. Please try again.');
+      console.error("Error rejecting RFQ:", error);
+      alert("Error rejecting RFQ. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -122,12 +141,14 @@ const ApproveRFQModal: React.FC<ApproveRFQModalProps> = ({ isOpen, onClose, rfq 
                   <p className="font-medium text-gray-900">{rfq.rfqNo}</p>
                 </div>
               </div>
-              
+
               <div className="flex items-center space-x-3">
                 <FileText className="w-5 h-5 text-gray-400" />
                 <div>
                   <p className="text-sm text-gray-500">Indent ID</p>
-                  <p className="font-medium text-gray-900">{rfqDetails.indentId}</p>
+                  <p className="font-medium text-gray-900">
+                    {rfqDetails.indentId}
+                  </p>
                 </div>
               </div>
 
@@ -135,7 +156,9 @@ const ApproveRFQModal: React.FC<ApproveRFQModalProps> = ({ isOpen, onClose, rfq 
                 <MapPin className="w-5 h-5 text-gray-400" />
                 <div>
                   <p className="text-sm text-gray-500">Warehouse Name</p>
-                  <p className="font-medium text-gray-900">{rfqDetails.warehouseName}</p>
+                  <p className="font-medium text-gray-900">
+                    {rfqDetails.warehouseName}
+                  </p>
                 </div>
               </div>
 
@@ -143,7 +166,9 @@ const ApproveRFQModal: React.FC<ApproveRFQModalProps> = ({ isOpen, onClose, rfq 
                 <Users className="w-5 h-5 text-gray-400" />
                 <div>
                   <p className="text-sm text-gray-500">Associated Vendors</p>
-                  <p className="font-medium text-gray-900">{rfqDetails.associatedVendors.join(', ')}</p>
+                  <p className="font-medium text-gray-900">
+                    {rfqDetails.associatedVendors.join(", ")}
+                  </p>
                 </div>
               </div>
             </div>
@@ -169,7 +194,9 @@ const ApproveRFQModal: React.FC<ApproveRFQModalProps> = ({ isOpen, onClose, rfq 
                 <MapPin className="w-5 h-5 text-gray-400 mt-1" />
                 <div>
                   <p className="text-sm text-gray-500">Warehouse Address</p>
-                  <p className="font-medium text-gray-900">{rfqDetails.warehouseAddress}</p>
+                  <p className="font-medium text-gray-900">
+                    {rfqDetails.warehouseAddress}
+                  </p>
                 </div>
               </div>
             </div>
@@ -182,21 +209,48 @@ const ApproveRFQModal: React.FC<ApproveRFQModalProps> = ({ isOpen, onClose, rfq 
               <table className="w-full border border-gray-200 rounded-lg">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th className="text-left py-3 px-4 font-medium text-gray-900">Item Code</th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-900">Item Name</th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-900">Vendor Option</th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-900">UOM</th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-900">Procure Qty</th>
+                    <th className="text-left py-3 px-4 font-medium text-gray-900">
+                      Item Code
+                    </th>
+                    <th className="text-left py-3 px-4 font-medium text-gray-900">
+                      Item Name
+                    </th>
+                    <th className="text-left py-3 px-4 font-medium text-gray-900">
+                      Description
+                    </th>
+                    <th className="text-left py-3 px-4 font-medium text-gray-900">
+                      Total Required Quantity
+                    </th>
+                    <th className="text-left py-3 px-4 font-medium text-gray-900">
+                      Vendor options
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
-                  {rfqDetails.items.map((item, index) => (
+                  {rfq.items.map((item, index) => (
                     <tr key={index} className="border-t border-gray-200">
-                      <td className="py-3 px-4 font-medium text-gray-900">{item.itemCode}</td>
-                      <td className="py-3 px-4 text-gray-600">{item.itemName}</td>
-                      <td className="py-3 px-4 text-gray-600">{item.vendorOptions.join(', ')}</td>
-                      <td className="py-3 px-4 text-gray-600">{item.uom}</td>
-                      <td className="py-3 px-4 text-gray-600">{item.procureQty}</td>
+                      <td className="py-3 px-4 font-medium text-gray-900">
+                        {item.details.item_code}
+                      </td>
+                      <td className="py-3 px-4 text-gray-600">
+                        {item.details.item_name}
+                      </td>
+                      <td className="py-3 px-4 text-gray-600">
+                        {item.details.description}
+                      </td>
+                      <td className="py-3 px-4 text-gray-600">
+                        {item.total_required_quantity}
+                      </td>
+                      <td className="py-3 px-4 text-gray-600">
+                        {[
+                          ...new Set(
+                            item.associatedVendors.map(
+                              (vendor: { business_name: string }) =>
+                                vendor.business_name
+                            )
+                          ),
+                        ].join(", ")}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -232,7 +286,7 @@ const ApproveRFQModal: React.FC<ApproveRFQModalProps> = ({ isOpen, onClose, rfq 
             className="flex items-center space-x-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
           >
             <XCircle className="w-4 h-4" />
-            <span>{loading ? 'Processing...' : 'Reject'}</span>
+            <span>{loading ? "Processing..." : "Reject"}</span>
           </button>
           <button
             onClick={handleApprove}
@@ -240,7 +294,7 @@ const ApproveRFQModal: React.FC<ApproveRFQModalProps> = ({ isOpen, onClose, rfq 
             className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
           >
             <CheckCircle className="w-4 h-4" />
-            <span>{loading ? 'Processing...' : 'Approve'}</span>
+            <span>{loading ? "Processing..." : "Approve"}</span>
           </button>
         </div>
       </div>
