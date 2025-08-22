@@ -1,9 +1,20 @@
-import React, { useState } from 'react';
-import { X, FileText, User, Calendar, Package, MapPin, CheckCircle, XCircle } from 'lucide-react';
+import React, { useState } from "react";
+import {
+  X,
+  FileText,
+  User,
+  Calendar,
+  Package,
+  MapPin,
+  CheckCircle,
+  XCircle,
+} from "lucide-react";
+import axios from "axios";
 
 interface ApprovePOModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onRefresh?: () => void; // Add refresh callback
   po: {
     id: string;
     poNo: string;
@@ -14,7 +25,7 @@ interface ApprovePOModalProps {
     status: string;
     type: string;
     vendorAddress: string;
-    warehouseName: string;
+    warehouseName?: string;
     gstNo: string;
     items: Array<{
       itemCode: string;
@@ -34,34 +45,95 @@ interface ApprovePOModalProps {
       sgst: number;
       cgst: number;
     };
+    warehouse_details: Array<{
+      id: string;
+      warehouse_code: string;
+      warehouse_name: string;
+      address: string;
+    }>;
+    payment_terms: Array<{
+      id: string;
+      payment_terms_type: string;
+      charges_amount: string;
+      charges_percent: string;
+      note: string;
+    }>;
   };
 }
 
-const ApprovePOModal: React.FC<ApprovePOModalProps> = ({ isOpen, onClose, po }) => {
-  const [comment, setComment] = useState('');
+const ApprovePOModal: React.FC<ApprovePOModalProps> = ({
+  isOpen,
+  onClose,
+  onRefresh,
+  po,
+}) => {
+  const [comment, setComment] = useState("");
+  const [loading, setLoading] = useState(false);
 
   if (!isOpen) return null;
 
   const totalAmount = po.items.reduce((sum, item) => sum + item.total, 0);
 
-  const handleApprove = () => {
+  const handleApprove = async () => {
     if (!comment.trim()) {
-      alert('Please enter a comment for approval');
+      alert("Please enter a comment for approval");
       return;
     }
 
-    console.log('Approving PO:', po.poNo, 'with comment:', comment);
-    onClose();
+    setLoading(true);
+    try {
+      const response = await axios.patch(
+        `${import.meta.env.VITE_API_BASE_URL}/purchase-order/${po.id}/approval`,
+        {
+          po_status: "APPROVED",
+          comments: comment.trim(),
+        }
+      );
+
+      if (response.data?.success) {
+        alert("Purchase Order approved successfully!");
+        onRefresh?.(); // Refresh the parent table
+        onClose();
+      } else {
+        alert("Failed to approve Purchase Order");
+      }
+    } catch (error) {
+      console.error("Error approving PO:", error);
+      alert("Error approving Purchase Order. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleReject = () => {
+  const handleReject = async () => {
     if (!comment.trim()) {
-      alert('Please enter a comment for rejection');
+      alert("Please enter a comment for rejection");
       return;
     }
 
-    console.log('Rejecting PO:', po.poNo, 'with comment:', comment);
-    onClose();
+    setLoading(true);
+    try {
+      const response = await axios.patch(
+        `${import.meta.env.VITE_API_BASE_URL}/purchase-order/${po.id}/approval`,
+        {
+          po_status: "REJECTED",
+          comments: comment.trim(),
+        }
+      );
+
+      if (response.data?.success) {
+        alert("Purchase Order rejected successfully!");
+        onRefresh?.(); // Refresh the parent table
+        onClose();
+      } else {
+        alert("Failed to reject Purchase Order");
+      }
+    } catch (error) {
+      console.error("Error rejecting PO:", error);
+      alert("Error rejecting Purchase Order. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -70,7 +142,9 @@ const ApprovePOModal: React.FC<ApprovePOModalProps> = ({ isOpen, onClose, po }) 
         <div className="flex items-center justify-between p-6 border-b border-gray-200">
           <div className="flex items-center space-x-3">
             <FileText className="w-6 h-6 text-orange-600" />
-            <h2 className="text-xl font-semibold text-gray-900">PO Approval Process</h2>
+            <h2 className="text-xl font-semibold text-gray-900">
+              PO Approval Process
+            </h2>
             <span className="px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
               Pending Approval
             </span>
@@ -86,7 +160,9 @@ const ApprovePOModal: React.FC<ApprovePOModalProps> = ({ isOpen, onClose, po }) 
         <div className="p-6 space-y-8">
           {/* Header Details */}
           <div>
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Header Details</h3>
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">
+              Header Details
+            </h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div className="space-y-4">
                 <div className="flex items-center space-x-3">
@@ -126,7 +202,9 @@ const ApprovePOModal: React.FC<ApprovePOModalProps> = ({ isOpen, onClose, po }) 
                 <div className="flex items-center space-x-3">
                   <User className="w-5 h-5 text-gray-400" />
                   <div>
-                    <p className="text-sm text-gray-500">Vendor Contact Number</p>
+                    <p className="text-sm text-gray-500">
+                      Vendor Contact Number
+                    </p>
                     <p className="font-medium text-gray-900">{po.contactNo}</p>
                   </div>
                 </div>
@@ -134,8 +212,28 @@ const ApprovePOModal: React.FC<ApprovePOModalProps> = ({ isOpen, onClose, po }) 
                 <div className="flex items-center space-x-3">
                   <Package className="w-5 h-5 text-gray-400" />
                   <div>
-                    <p className="text-sm text-gray-500">Warehouse Name</p>
-                    <p className="font-medium text-gray-900">{po.warehouseName}</p>
+                    <p className="text-sm text-gray-500">Warehouse(s)</p>
+                    <div className="space-y-1">
+                      {po.warehouse_details &&
+                      po.warehouse_details.length > 0 ? (
+                        po.warehouse_details.map((warehouse) => (
+                          <div
+                            key={warehouse.id}
+                            className="font-medium text-gray-900"
+                          >
+                            {warehouse.warehouse_name} (
+                            {warehouse.warehouse_code})
+                            <p className="text-xs text-gray-500">
+                              {warehouse.address}
+                            </p>
+                          </div>
+                        ))
+                      ) : (
+                        <p className="font-medium text-gray-900">
+                          {po.warehouseName}
+                        </p>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -145,7 +243,9 @@ const ApprovePOModal: React.FC<ApprovePOModalProps> = ({ isOpen, onClose, po }) 
                   <FileText className="w-5 h-5 text-gray-400" />
                   <div>
                     <p className="text-sm text-gray-500">PO Amount</p>
-                    <p className="text-2xl font-bold text-gray-900">₹{po.poAmount.toLocaleString()}</p>
+                    <p className="text-2xl font-bold text-gray-900">
+                      ₹{po.poAmount.toLocaleString()}
+                    </p>
                   </div>
                 </div>
 
@@ -161,7 +261,9 @@ const ApprovePOModal: React.FC<ApprovePOModalProps> = ({ isOpen, onClose, po }) 
                   <MapPin className="w-5 h-5 text-gray-400 mt-1" />
                   <div>
                     <p className="text-sm text-gray-500">Vendor Address</p>
-                    <p className="font-medium text-gray-900">{po.vendorAddress}</p>
+                    <p className="font-medium text-gray-900">
+                      {po.vendorAddress}
+                    </p>
                   </div>
                 </div>
               </div>
@@ -170,38 +272,73 @@ const ApprovePOModal: React.FC<ApprovePOModalProps> = ({ isOpen, onClose, po }) 
 
           {/* Item Details Table */}
           <div>
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Item Details</h3>
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">
+              Item Details
+            </h3>
             <div className="overflow-x-auto">
               <table className="w-full border border-gray-200 rounded-lg">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th className="text-left py-3 px-4 font-medium text-gray-900">Item Code</th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-900">Item Name</th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-900">Category Name</th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-900">UOM</th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-900">HSN Code</th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-900">Rate</th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-900">Quantity to be Purchased</th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-900">Total Amount</th>
+                    <th className="text-left py-3 px-4 font-medium text-gray-900">
+                      Item Code
+                    </th>
+                    <th className="text-left py-3 px-4 font-medium text-gray-900">
+                      Item Name
+                    </th>
+                    {/* <th className="text-left py-3 px-4 font-medium text-gray-900">
+                      Category Name
+                    </th> */}
+                    <th className="text-left py-3 px-4 font-medium text-gray-900">
+                      UOM
+                    </th>
+                    <th className="text-left py-3 px-4 font-medium text-gray-900">
+                      HSN Code
+                    </th>
+                    <th className="text-left py-3 px-4 font-medium text-gray-900">
+                      Rate
+                    </th>
+                    <th className="text-left py-3 px-4 font-medium text-gray-900">
+                      Quantity to be Purchased
+                    </th>
+                    <th className="text-left py-3 px-4 font-medium text-gray-900">
+                      Total Amount
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
                   {po.items.map((item, index) => (
                     <tr key={index} className="border-t border-gray-200">
-                      <td className="py-3 px-4 font-medium text-gray-900">{item.itemCode}</td>
-                      <td className="py-3 px-4 text-gray-600">{item.itemName}</td>
-                      <td className="py-3 px-4 text-gray-600">{item.categoryName}</td>
+                      <td className="py-3 px-4 font-medium text-gray-900">
+                        {item.itemCode}
+                      </td>
+                      <td className="py-3 px-4 text-gray-600">
+                        {item.itemName}
+                      </td>
+                      {/* <td className="py-3 px-4 text-gray-600">
+                        {item.categoryName}
+                      </td> */}
                       <td className="py-3 px-4 text-gray-600">{item.uom}</td>
-                      <td className="py-3 px-4 text-gray-600">{item.hsnCode}</td>
-                      <td className="py-3 px-4 text-gray-600">₹{item.rate.toLocaleString()}</td>
-                      <td className="py-3 px-4 text-gray-600">{item.quantity}</td>
-                      <td className="py-3 px-4 font-medium text-gray-900">₹{item.total.toLocaleString()}</td>
+                      <td className="py-3 px-4 text-gray-600">
+                        {item.hsnCode}
+                      </td>
+                      <td className="py-3 px-4 text-gray-600">
+                        ₹{item.rate.toLocaleString()}
+                      </td>
+                      <td className="py-3 px-4 text-gray-600">
+                        {item.quantity}
+                      </td>
+                      <td className="py-3 px-4 font-medium text-gray-900">
+                        ₹{item.total.toLocaleString()}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
                 <tfoot className="bg-gray-50">
                   <tr>
-                    <td colSpan={7} className="py-3 px-4 font-medium text-gray-900 text-right">
+                    <td
+                      colSpan={7}
+                      className="py-3 px-4 font-medium text-gray-900 text-right"
+                    >
                       Total Amount (sum of all items):
                     </td>
                     <td className="py-3 px-4 font-bold text-gray-900">
@@ -215,38 +352,108 @@ const ApprovePOModal: React.FC<ApprovePOModalProps> = ({ isOpen, onClose, po }) 
 
           {/* Bank Details */}
           <div>
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Bank Details</h3>
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">
+              Bank Details
+            </h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div>
                 <p className="text-sm text-gray-500">Bank Name</p>
-                <p className="font-medium text-gray-900">{po.vendorDetails.bankName}</p>
+                <p className="font-medium text-gray-900">
+                  {po.vendorDetails.bankName}
+                </p>
               </div>
               <div>
                 <p className="text-sm text-gray-500">Account Number</p>
-                <p className="font-medium text-gray-900">{po.vendorDetails.accountNo}</p>
+                <p className="font-medium text-gray-900">
+                  {po.vendorDetails.accountNo}
+                </p>
               </div>
               <div>
                 <p className="text-sm text-gray-500">IFSC Code</p>
-                <p className="font-medium text-gray-900">{po.vendorDetails.ifscCode}</p>
+                <p className="font-medium text-gray-900">
+                  {po.vendorDetails.ifscCode}
+                </p>
               </div>
             </div>
           </div>
 
+          {/* Payment Terms */}
+          {/* <div>
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">
+              Payment Terms
+            </h3>
+            <div className="overflow-x-auto">
+              <table className="w-full border border-gray-200 rounded-lg">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="text-left py-3 px-4 font-medium text-gray-900">
+                      Payment Type
+                    </th>
+                    <th className="text-left py-3 px-4 font-medium text-gray-900">
+                      Percentage
+                    </th>
+                    <th className="text-left py-3 px-4 font-medium text-gray-900">
+                      Amount
+                    </th>
+                    <th className="text-left py-3 px-4 font-medium text-gray-900">
+                      Note
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {po.payment_terms && po.payment_terms.length > 0 ? (
+                    po.payment_terms.map((term) => (
+                      <tr key={term.id} className="border-t border-gray-200">
+                        <td className="py-3 px-4 font-medium text-gray-900">
+                          {term.payment_terms_type}
+                        </td>
+                        <td className="py-3 px-4 text-gray-600">
+                          {term.charges_percent}%
+                        </td>
+                        <td className="py-3 px-4 text-gray-600">
+                          ₹{parseFloat(term.charges_amount).toLocaleString()}
+                        </td>
+                        <td className="py-3 px-4 text-gray-600">{term.note}</td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr className="border-t border-gray-200">
+                      <td
+                        colSpan={4}
+                        className="py-3 px-4 text-center text-gray-500"
+                      >
+                        No payment terms available
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div> */}
+
           {/* Tax Information */}
           <div>
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Tax Information</h3>
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">
+              Tax Information
+            </h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div className="bg-gray-50 rounded-lg p-4">
                 <p className="text-sm text-gray-500">IGST</p>
-                <p className="text-xl font-bold text-gray-900">{po.vendorDetails.igst}%</p>
+                <p className="text-xl font-bold text-gray-900">
+                  {po.vendorDetails.igst}%
+                </p>
               </div>
               <div className="bg-gray-50 rounded-lg p-4">
                 <p className="text-sm text-gray-500">SGST</p>
-                <p className="text-xl font-bold text-gray-900">{po.vendorDetails.sgst}%</p>
+                <p className="text-xl font-bold text-gray-900">
+                  {po.vendorDetails.sgst}%
+                </p>
               </div>
               <div className="bg-gray-50 rounded-lg p-4">
                 <p className="text-sm text-gray-500">CGST</p>
-                <p className="text-xl font-bold text-gray-900">{po.vendorDetails.cgst}%</p>
+                <p className="text-xl font-bold text-gray-900">
+                  {po.vendorDetails.cgst}%
+                </p>
               </div>
             </div>
           </div>
@@ -269,23 +476,26 @@ const ApprovePOModal: React.FC<ApprovePOModalProps> = ({ isOpen, onClose, po }) 
         <div className="flex items-center justify-end space-x-3 p-6 border-t border-gray-200">
           <button
             onClick={onClose}
-            className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+            disabled={loading}
+            className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Cancel
           </button>
           <button
             onClick={handleReject}
-            className="flex items-center space-x-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+            disabled={loading}
+            className="flex items-center space-x-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <XCircle className="w-4 h-4" />
-            <span>Reject</span>
+            <span>{loading ? "Processing..." : "Reject"}</span>
           </button>
           <button
             onClick={handleApprove}
-            className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+            disabled={loading}
+            className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <CheckCircle className="w-4 h-4" />
-            <span>Approve</span>
+            <span>{loading ? "Processing..." : "Approve"}</span>
           </button>
         </div>
       </div>

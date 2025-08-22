@@ -1,7 +1,14 @@
 import React, { useState } from "react";
 import { X, Plus, Trash2, Search } from "lucide-react";
 import axios from "axios";
-import { Select, MenuItem, Chip, FormControl, Box } from "@mui/material";
+import {
+  Select,
+  MenuItem,
+  Chip,
+  FormControl,
+  InputLabel,
+  Box,
+} from "@mui/material";
 
 interface CreatePOModalProps {
   isOpen: boolean;
@@ -17,7 +24,7 @@ interface PaymentTerm {
 }
 
 interface POItem {
-  id: string;
+  item_id: string;
   hsnCode: string;
   itemCode: string;
   itemName: string;
@@ -50,18 +57,27 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
     gstNo: "",
     accountNo: "",
     ifscCode: "",
-    igst: 0,
-    sgst: 0,
-    cgst: 0,
+    igst: 18,
+    sgst: 9,
+    cgst: 9,
   });
 
-  const [paymentTerms, setPaymentTerms] = useState<PaymentTerm[]>([]);
+  const [paymentTerms, setPaymentTerms] = useState<PaymentTerm[]>([
+    {
+      id: "1",
+      terms: "Advance",
+      amount: "30%",
+      reason: "Material booking",
+    },
+  ]);
+
 
   const [items, setItems] = useState<POItem[]>([]);
 
   // Fetch data on component mount
   React.useEffect(() => {
     if (isOpen) {
+      fetchWarehouses();
       if (sourceType === "quotation") {
         fetchApprovedRFQs();
       } else {
@@ -111,6 +127,7 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
 
   const fetchRFQVendors = async (rfqId: string) => {
     try {
+
       // Get vendors from the already fetched RFQ data
       const selectedRFQ = rfqs.find((rfq) => rfq.id === rfqId);
       if (selectedRFQ && selectedRFQ.vendors) {
@@ -158,15 +175,22 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
   const fetchApprovedVendors = async () => {
     try {
       const response = await axios.get(
-        `${import.meta.env.VITE_API_BASE_URL}/vendors?approval_status=APPROVED`
+        `${
+          import.meta.env.VITE_CRM_API_BASE_URL
+        }/vendor/filter?approval_status=APPROVED`
       );
       if (response.data?.data) {
         const mappedVendors = response.data.data.map((vendor: any) => ({
-          id: vendor.id,
-          name: vendor.vendor_name,
-          address: vendor.address || "",
+          id: vendor.vendor_id,
+          name: vendor.business_name,
+          address: `${vendor.city}, ${vendor.district}, ${vendor.state}, ${vendor.pincode}`,
+          bankName: vendor.bank_name,
+          gstNo: vendor.gst_number,
+          accountNo: vendor.bank_account_number,
+          ifscCode: vendor.ifsc_code,
         }));
         setVendors(mappedVendors);
+        console.log("Fetched Approved Vendors:", mappedVendors);
       }
     } catch (err) {
       console.error("Error fetching vendors:", err);
@@ -176,7 +200,8 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
   const fetchWarehouses = async () => {
     try {
       const response = await axios.get(
-        `${import.meta.env.VITE_API_BASE_URL}/warehouse`
+        `${import.meta.env.VITE_IMS_API_BASE_URL}/warehouse`
+
       );
       if (response.data?.data) {
         const mappedWarehouses = response.data.data.map((warehouse: any) => ({
@@ -190,7 +215,32 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
     }
   };
 
-  const fetchVendorQuotationDetails = async (
+  const fetchIndentItems = async (indentId: string) => {
+    try {
+      const response = await axios.get(
+        `${import.meta.env.VITE_API_BASE_URL}/indent/${indentId}`
+      );
+      if (response.data?.data?.items) {
+        const mappedItems = response.data.data.items.map((item: any) => ({
+          item_id: item.item_id,
+          hsnCode: item.hsn_code || "",
+          itemCode: item.item_code || "",
+          itemName: item.item_name || "",
+          uom: item.uom_name || "",
+          rate: item.latest_lowest_net_rate || 0,
+          quantity: item.required_quantity || 0,
+          totalPrice:
+            (item.latest_lowest_net_rate || 0) * (item.required_quantity || 0),
+        }));
+        setItems(mappedItems);
+        console.log("Fetched mapped Indent Items:", mappedItems);
+      }
+    } catch (err) {
+      console.error("Error fetching indent items:", err);
+    }
+  };
+  
+ const fetchVendorQuotationDetails = async (
     vendorId: string,
     rfqId: string
   ) => {
@@ -294,7 +344,6 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
       selectedVendor: "",
     });
     setVendors([]);
-
     // Reset payment terms and items to empty when changing source type
     setPaymentTerms([]);
     setItems([]);
@@ -304,12 +353,21 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
     }
   };
 
+  // Handle indent selection to fetch items
+  const handleIndentChange = (indentId: string) => {
+    setFormData({ ...formData, selectedIndent: indentId });
+    if (indentId) {
+      fetchIndentItems(indentId);
+    }
+  };
+
   const handleVendorChange = async (vendorId: string) => {
     const vendor = vendors.find((v) => v.id === vendorId);
     setFormData({
       ...formData,
       selectedVendor: vendorId,
       vendorAddress: vendor?.address || "",
+
       // Auto-populate vendor bank details from RFQ data
       bankName: vendor?.bankName || "",
       gstNo: vendor?.gstNumber || "",
@@ -368,6 +426,7 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
     value: string
   ) => {
     setPaymentTerms(
+
       paymentTerms.map((term) => {
         if (term.id === id && !term.isFromQuotation) {
           return { ...term, [field]: value };
@@ -384,7 +443,12 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
   ) => {
     setItems(
       items.map((item) => {
-        if (item.id === itemId) {
+// <<<<<<< feature/mijanur/po
+//        if (item?.item_id === itemId || item?.id === itemId) {
+// =======
+//        if (item.id === itemId) {
+// >>>>>>> main
+  if (item?.item_id === itemId || item?.id === itemId) {
           const updatedItem = { ...item, [field]: value };
           updatedItem.totalPrice = updatedItem.rate * updatedItem.quantity;
           return updatedItem;
@@ -405,6 +469,7 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
   const handleSave = async () => {
     if (!formData.selectedVendor || items.length === 0) {
       alert("Please select vendor and ensure items are available");
+
       return;
     }
 
@@ -599,31 +664,126 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
   const handleSaveIndentPO = async () => {
     setLoading(true);
     try {
-      const payload = {
-        po_origin_type: "INDENT",
-        po_origin_id: formData.selectedIndent,
-        po_date: formData.poDate,
-        vendor_id: formData.selectedVendor,
-        bank_name: formData.bankName,
-        gst: formData.gstNo,
-        account_no: formData.accountNo,
-        ifsc_code: formData.ifscCode,
-        igst: formData.igst.toString(),
-        sgst: formData.sgst.toString(),
-        cgst: formData.cgst.toString(),
-        total_amount: totalAmount,
-      };
+      // For Indent Details section - use new API structure
+      if (sourceType === "indent") {
+        // Step 1: Create Purchase Order
+        const poPayload = {
+          po_origin_id: formData.selectedIndent,
+          po_origin_type: "INDENT",
+          po_number: null,
+          po_uri: null,
+          vendor_id: formData.selectedVendor,
+          approved_by: null,
+          is_mailed: false,
+          mail_sent: null,
+          comments: null,
+          reference_purchase_id: null,
+          po_type: "STANDARD",
+          po_date: formData.poDate,
+          bank_name: formData.bankName,
+          account_no: formData.accountNo,
+          ifsc_code: formData.ifscCode,
+          sgst: parseFloat(formData.sgst.toString()),
+          igst: parseFloat(formData.igst.toString()),
+          project_id: null,
+          lookup_approval_status: null,
+          approved_on: null,
+          gst: formData.gstNo,
+          total_amount: totalAmount,
+          cgst: parseFloat(formData.cgst.toString()),
+          inspection_status: false,
+        };
 
-      const response = await axios.post(
-        `${import.meta.env.VITE_API_BASE_URL}/po`,
-        payload
-      );
+        const poResponse = await axios.post(
+          `${import.meta.env.VITE_API_BASE_URL}/purchase-order`,
+          poPayload
+        );
 
-      if (response.data.success) {
-        alert("Purchase Order created successfully!");
-        onClose();
+        if (!poResponse.data.success) {
+          alert("Failed to create Purchase Order");
+          return;
+        }
+
+        const poId = poResponse.data.data.id || poResponse.data.data.po_id;
+
+        // Step 2: Create Purchase Order Details in bulk
+        console.log("Creating Purchase Order Details for PO ID:", items);
+        console.log("selectedVendor:---", formData.selectedVendor);
+        const poDetailsPayload = items.map((item) => ({
+          po_id: poId,
+          vendor_id: formData.selectedVendor,
+          item_id: item.item_id,
+          qty: item.quantity,
+          rate: item.rate,
+          notes: "",
+          qs_approved: false,
+        }));
+
+        const detailsResponse = await axios.post(
+          `${import.meta.env.VITE_API_BASE_URL}/purchase-order-details/bulk`,
+          poDetailsPayload
+        );
+
+        // Step 3: Create Purchase Order Warehouse mappings in bulk
+        if (formData.selectedWarehouses.length > 0) {
+          const warehousePayload = formData.selectedWarehouses.map(
+            (warehouseId) => ({
+              po_id: poId,
+              warehouse_id: warehouseId,
+            })
+          );
+
+          try {
+            await axios.post(
+              `${
+                import.meta.env.VITE_API_BASE_URL
+              }/purchase-order-warehouse/bulk`,
+              warehousePayload
+            );
+            console.log(
+              "Purchase Order warehouse mappings created successfully"
+            );
+          } catch (warehouseError) {
+            console.error("Error creating warehouse mappings:", warehouseError);
+            // Continue execution as warehouse mapping is not critical for PO creation
+          }
+        }
+
+        if (detailsResponse.data.success) {
+          alert("Purchase Order created successfully!");
+          onClose();
+        } else {
+          alert("Purchase Order created but failed to add item details");
+        }
       } else {
-        alert("Failed to create Purchase Order");
+        // For Quotation section - keep existing logic unchanged
+        const payload = {
+          po_origin_type: "RFQ",
+          po_origin_id: formData.selectedRFQ,
+          po_date: formData.poDate,
+          vendor_id: formData.selectedVendor,
+          bank_name: formData.bankName,
+          gst: formData.gstNo,
+          account_no: formData.accountNo,
+          ifsc_code: formData.ifscCode,
+          igst: formData.igst.toString(),
+          sgst: formData.sgst.toString(),
+          cgst: formData.cgst.toString(),
+          total_amount: totalAmount,
+        };
+
+        const response = await axios.post(
+          `${import.meta.env.VITE_API_BASE_URL}/po`,
+          payload
+        );
+
+        if (response.data.success) {
+          alert("Purchase Order created successfully!");
+          onClose();
+        } else {
+          alert("Failed to create Purchase Order");
+        }
+
       }
     } catch (error) {
       console.error("Error creating PO:", error);
@@ -726,9 +886,8 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
                 </label>
                 <select
                   value={formData.selectedIndent}
-                  onChange={(e) =>
-                    setFormData({ ...formData, selectedIndent: e.target.value })
-                  }
+                  onChange={(e) => handleIndentChange(e.target.value)}
+
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
                   <option value="">Select Indent</option>
@@ -823,6 +982,7 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
             </div>
           </div>
 
+
           <div className="md:col-span-3">
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Vendor Address
@@ -846,6 +1006,7 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
                   const warehouse = warehouses.find(
                     (w) => w.id === warehouseId
                   );
+
                   return (
                     <div
                       key={warehouseId}
@@ -890,6 +1051,7 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
               <input
                 type="text"
                 value={formData.gstNo}
+
                 readOnly
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-600"
               />
@@ -914,6 +1076,7 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
               <input
                 type="text"
                 value={formData.ifscCode}
+
                 readOnly
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-600"
               />
@@ -1019,12 +1182,16 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
                               e.target.value
                             )
                           }
+// <<<<<<< feature/mijanur/po
+                          className="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+// =======
                           readOnly={term.isFromQuotation}
                           className={`w-full px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 ${
                             term.isFromQuotation
                               ? "bg-gray-50 text-gray-600 cursor-not-allowed"
                               : ""
                           }`}
+// >>>>>>> main
                         />
                       </td>
                       <td className="py-3 px-4">
@@ -1038,12 +1205,16 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
                               e.target.value
                             )
                           }
+// <<<<<<< feature/mijanur/po
+                          className="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+// =======
                           readOnly={term.isFromQuotation}
                           className={`w-full px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 ${
                             term.isFromQuotation
                               ? "bg-gray-50 text-gray-600 cursor-not-allowed"
                               : ""
                           }`}
+// >>>>>>> main
                         />
                       </td>
                       <td className="py-3 px-4">
@@ -1057,12 +1228,16 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
                               e.target.value
                             )
                           }
+// <<<<<<< feature/mijanur/po
+                          className="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+// =======
                           readOnly={term.isFromQuotation}
                           className={`w-full px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 ${
                             term.isFromQuotation
                               ? "bg-gray-50 text-gray-600 cursor-not-allowed"
                               : ""
                           }`}
+// >>>>>>> main
                         />
                       </td>
                       <td className="py-3 px-4 text-center">
@@ -1092,7 +1267,11 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
               </div>
             )}
           </div>
+// <<<<<<< feature/mijanur/po
+        )}
+// =======
         </div> */}
+// >>>>>>> main
 
         {/* Item Details */}
         <div>
@@ -1113,6 +1292,78 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
           </div>
 
           <div className="overflow-x-auto">
+<!-- <<<<<<< feature/mijanur/po -->
+            <table className="w-full border border-gray-200 rounded-lg">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="text-left py-3 px-4 font-medium text-gray-900">
+                    HSN Code
+                  </th>
+                  <th className="text-left py-3 px-4 font-medium text-gray-900">
+                    Item Code
+                  </th>
+                  <th className="text-left py-3 px-4 font-medium text-gray-900">
+                    Item Name
+                  </th>
+                  <th className="text-left py-3 px-4 font-medium text-gray-900">
+                    UOM
+                  </th>
+                  <th className="text-left py-3 px-4 font-medium text-gray-900">
+                    Rate
+                  </th>
+                  <th className="text-left py-3 px-4 font-medium text-gray-900">
+                    Quantity to be Purchased
+                  </th>
+                  <th className="text-left py-3 px-4 font-medium text-gray-900">
+                    Total Price
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredItems.map((item) => (
+                  <tr key={item.item_id} className="border-t border-gray-200">
+                    <td className="py-3 px-4 text-gray-600">{item.hsnCode}</td>
+                    <td className="py-3 px-4 font-medium text-gray-900">
+                      {item.itemCode}
+                    </td>
+                    <td className="py-3 px-4 text-gray-600">{item.itemName}</td>
+                    <td className="py-3 px-4 text-gray-600">{item.uom}</td>
+                    <td className="py-3 px-4">
+                      <input
+                        type="number"
+                        value={item.rate}
+                        onChange={(e) =>
+                          handleItemChange(
+                            item.item_id,
+                            "rate",
+                            Number(e.target.value)
+                          )
+                        }
+                        className="w-20 px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      />
+                    </td>
+                    <td className="py-3 px-4">
+                      <input
+                        type="number"
+                        value={item.quantity}
+                        onChange={(e) =>
+                          handleItemChange(
+                            item.item_id,
+                            "quantity",
+                            Number(e.target.value)
+                          )
+                        }
+                        className="w-20 px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      />
+                    </td>
+                    <td className="py-3 px-4 font-medium text-gray-900">
+                      ₹{item.totalPrice.toLocaleString()}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+<!-- ======= -->
             {filteredItems.length > 0 ? (
               <table className="w-full border border-gray-200 rounded-lg">
                 <thead className="bg-gray-50">
@@ -1198,6 +1449,7 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
                 </p>
               </div>
             )}
+<!-- >>>>>>> main -->
           </div>
         </div>
 

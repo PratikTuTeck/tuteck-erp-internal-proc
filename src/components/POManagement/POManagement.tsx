@@ -50,6 +50,19 @@ interface PO {
     sgst: number;
     cgst: number;
   };
+  warehouse_details: Array<{
+    id: string;
+    warehouse_code: string;
+    warehouse_name: string;
+    address: string;
+  }>;
+  payment_terms: Array<{
+    id: string;
+    payment_terms_type: string;
+    charges_amount: string;
+    charges_percent: string;
+    note: string;
+  }>;
   paymentTerms: Array<{
     terms: string;
     amount: string;
@@ -114,6 +127,9 @@ const POManagement: React.FC = () => {
             cgst: parseFloat(po.cgst) || 0,
           },
           paymentTerms: po.payment_terms || [], // This would come from a separate payment terms table
+          warehouse_details: [],
+          payment_terms: [],
+
         }));
         setPurchaseOrders(mappedPOs);
       }
@@ -157,23 +173,79 @@ const POManagement: React.FC = () => {
   const handleViewPO = async (po: PO) => {
     try {
       const response = await axios.get(
-        `${import.meta.env.VITE_API_BASE_URL}/po/${po.id}`
+        `${import.meta.env.VITE_API_BASE_URL}/purchase-order/${po.id}`
+
       );
       if (response.data?.data) {
+        const apiData = response.data.data;
+        const purchaseOrder = apiData.purchase_order;
+        const vendorDetails = apiData.vendor_details;
+        const items = apiData.items || [];
+        const warehouseDetails = apiData.warehouse_details || [];
+        const paymentTerms = apiData.payment_terms || [];
+
+        // Map items from the new API response structure
+        const mappedItems = items.map((item: any) => ({
+          itemCode: item.item_details?.item_code || "",
+          itemName: item.item_details?.item_name || "",
+          categoryName: item.item_details?.category_name || "N/A", // Will need to be fetched from category API if needed
+          uom: item.item_details?.uom_name || "N/A", // Will need to be fetched from UOM API if needed
+          hsnCode: item.item_details?.hsn_code || "",
+          rate: parseFloat(item.rate) || 0,
+          quantity: parseInt(item.qty) || 0,
+          total: (parseFloat(item.rate) || 0) * (parseInt(item.qty) || 0),
+        }));
+
         const detailedPO = {
-          ...po,
-          items: response.data.data.items || po.items,
+          id: purchaseOrder.id,
+          poNo: purchaseOrder.po_number,
+          parentPO: purchaseOrder.reference_purchase_id
+            ? `PO-REF-${purchaseOrder.reference_purchase_id.slice(0, 8)}`
+            : undefined,
+          vendorName: vendorDetails?.business_name || po.vendorName,
+          contactNo: vendorDetails?.contact_no || po.contactNo,
+          poDate: purchaseOrder.po_date
+            ? new Date(purchaseOrder.po_date).toISOString().split("T")[0]
+            : po.poDate,
+          poAmount: parseFloat(purchaseOrder.total_amount) || po.poAmount,
+          approvedBy: purchaseOrder.approved_by || po.approvedBy,
+          approvedOn: purchaseOrder.approved_on
+            ? new Date(purchaseOrder.approved_on).toISOString().split("T")[0]
+            : po.approvedOn,
+          status: purchaseOrder.po_status || po.status,
+          type: (purchaseOrder.po_origin_type === "RFQ"
+            ? "Quotation"
+            : "Indent") as "Quotation" | "Indent",
+          vendorAddress: vendorDetails
+            ? `${vendorDetails.city}, ${vendorDetails.district}, ${vendorDetails.state}, ${vendorDetails.pincode}`
+            : po.vendorAddress,
+          warehouseName:
+            warehouseDetails.length > 0
+              ? warehouseDetails.map((w: any) => w.warehouse_name).join(", ")
+              : po.warehouseName,
+          gstNo: purchaseOrder.gst || vendorDetails?.gst_number || po.gstNo,
+          items: mappedItems,
           vendorDetails: {
-            bankName: response.data.data.bank_name || po.vendorDetails.bankName,
+            bankName: purchaseOrder.bank_name || vendorDetails?.bank_name || "",
             accountNo:
-              response.data.data.account_no || po.vendorDetails.accountNo,
-            ifscCode: response.data.data.ifsc_code || po.vendorDetails.ifscCode,
-            igst: parseFloat(response.data.data.igst) || po.vendorDetails.igst,
-            sgst: parseFloat(response.data.data.sgst) || po.vendorDetails.sgst,
-            cgst: parseFloat(response.data.data.cgst) || po.vendorDetails.cgst,
+              purchaseOrder.account_no ||
+              vendorDetails?.bank_account_number ||
+              "",
+            ifscCode: purchaseOrder.ifsc_code || vendorDetails?.ifsc_code || "",
+            igst: parseFloat(purchaseOrder.igst) || 0,
+            sgst: parseFloat(purchaseOrder.sgst) || 0,
+            cgst: parseFloat(purchaseOrder.cgst) || 0,
           },
-          paymentTerms: response.data.data.payment_terms || po.paymentTerms,
+          warehouse_details: warehouseDetails || [],
+          payment_terms: paymentTerms || [],
+          paymentTerms: paymentTerms.map((term: any) => ({
+            terms: term.payment_terms_type,
+            amount: term.charges_amount,
+            reason: term.note,
+          })),
+
         };
+
         setSelectedPO(detailedPO);
         setShowViewPO(true);
       }
@@ -188,9 +260,87 @@ const POManagement: React.FC = () => {
     setShowEditPO(true);
   };
 
-  const handleApprovePO = (po: PO) => {
-    setSelectedPO(po);
-    setShowApprovePO(true);
+  const handleApprovePO = async (po: PO) => {
+    try {
+      const response = await axios.get(
+        `${import.meta.env.VITE_API_BASE_URL}/purchase-order/${po.id}`
+      );
+      if (response.data?.data) {
+        const apiData = response.data.data;
+        const purchaseOrder = apiData.purchase_order;
+        const vendorDetails = apiData.vendor_details;
+        const items = apiData.items || [];
+        const warehouseDetails = apiData.warehouse_details || [];
+        const paymentTerms = apiData.payment_terms || [];
+
+        // Map items from the new API response structure
+        const mappedItems = items.map((item: any) => ({
+          itemCode: item.item_details?.item_code || "",
+          itemName: item.item_details?.item_name || "",
+          categoryName: item.item_details?.category_name || "N/A", // Will need to be fetched from category API if needed
+          uom: item.item_details?.uom_name || "N/A", // Will need to be fetched from UOM API if needed
+          hsnCode: item.item_details?.hsn_code || "",
+          rate: parseFloat(item.rate) || 0,
+          quantity: parseInt(item.qty) || 0,
+          total: (parseFloat(item.rate) || 0) * (parseInt(item.qty) || 0),
+        }));
+
+        const detailedPO = {
+          id: purchaseOrder.id,
+          poNo: purchaseOrder.po_number,
+          parentPO: purchaseOrder.reference_purchase_id
+            ? `PO-REF-${purchaseOrder.reference_purchase_id.slice(0, 8)}`
+            : undefined,
+          vendorName: vendorDetails?.business_name || po.vendorName,
+          contactNo: vendorDetails?.contact_no || po.contactNo,
+          poDate: purchaseOrder.po_date
+            ? new Date(purchaseOrder.po_date).toISOString().split("T")[0]
+            : po.poDate,
+          poAmount: parseFloat(purchaseOrder.total_amount) || po.poAmount,
+          approvedBy: purchaseOrder.approved_by || po.approvedBy,
+          approvedOn: purchaseOrder.approved_on
+            ? new Date(purchaseOrder.approved_on).toISOString().split("T")[0]
+            : po.approvedOn,
+          status: purchaseOrder.po_status || po.status,
+          type: (purchaseOrder.po_origin_type === "RFQ"
+            ? "Quotation"
+            : "Indent") as "Quotation" | "Indent",
+          vendorAddress: vendorDetails
+            ? `${vendorDetails.city}, ${vendorDetails.district}, ${vendorDetails.state}, ${vendorDetails.pincode}`
+            : po.vendorAddress,
+          warehouseName:
+            warehouseDetails.length > 0
+              ? warehouseDetails.map((w: any) => w.warehouse_name).join(", ")
+              : po.warehouseName,
+          gstNo: purchaseOrder.gst || vendorDetails?.gst_number || po.gstNo,
+          items: mappedItems,
+          vendorDetails: {
+            bankName: purchaseOrder.bank_name || vendorDetails?.bank_name || "",
+            accountNo:
+              purchaseOrder.account_no ||
+              vendorDetails?.bank_account_number ||
+              "",
+            ifscCode: purchaseOrder.ifsc_code || vendorDetails?.ifsc_code || "",
+            igst: parseFloat(purchaseOrder.igst) || 0,
+            sgst: parseFloat(purchaseOrder.sgst) || 0,
+            cgst: parseFloat(purchaseOrder.cgst) || 0,
+          },
+          warehouse_details: warehouseDetails || [],
+          payment_terms: paymentTerms || [],
+          paymentTerms: paymentTerms.map((term: any) => ({
+            terms: term.payment_terms_type,
+            amount: term.charges_amount,
+            reason: term.note,
+          })),
+        };
+
+        setSelectedPO(detailedPO);
+        setShowApprovePO(true);
+      }
+    } catch (err) {
+      console.error("Error fetching PO details for approval:", err);
+      alert("Failed to fetch PO details");
+    }
   };
 
   const handleAmendPO = (po: PO) => {
@@ -490,6 +640,7 @@ const POManagement: React.FC = () => {
             setShowApprovePO(false);
             setSelectedPO(null);
           }}
+          onRefresh={fetchPOs} // Add refresh callback
           po={selectedPO}
         />
       )}
