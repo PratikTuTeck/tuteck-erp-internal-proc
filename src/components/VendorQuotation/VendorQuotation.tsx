@@ -1,18 +1,11 @@
 import React, { useState } from "react";
-import {
-  Plus,
-  Search,
-  Eye,
-  Edit,
-  CheckCircle,
-  FileText,
-  Filter,
-} from "lucide-react";
+import { Plus, Search, Eye, Edit, CheckCircle, Filter } from "lucide-react";
 import axios from "axios";
 import CreateRFQModal from "./CreateRFQModal";
 import ApproveRFQModal from "./ApproveRFQModal";
 import VendorQuotationEntry from "./VendorQuotationEntry";
 import ApproveQuotationModal from "./ApproveQuotationModal";
+import ViewQuotationModal from "./ViewQuotationModal";
 import GenerateCSTab from "./GenerateCSTab";
 import ApproveCSTab from "./ApproveCSTab";
 
@@ -31,6 +24,7 @@ interface RFQ {
 interface VendorQuotation {
   id: string;
   quotationNo: string;
+  rfqId: string;
   rfqNo: string;
   requestedBy: string;
   requestedOn: string;
@@ -38,6 +32,7 @@ interface VendorQuotation {
   approvedBy: string;
   approvedOn: string;
   status: "pending" | "approved" | "rejected";
+  details?: any; // Additional details from API response
 }
 
 const VendorQuotation: React.FC = () => {
@@ -46,12 +41,16 @@ const VendorQuotation: React.FC = () => {
   const [showApproveRFQ, setShowApproveRFQ] = useState(false);
   const [showQuotationEntry, setShowQuotationEntry] = useState(false);
   const [showApproveQuotation, setShowApproveQuotation] = useState(false);
+  const [showViewQuotation, setShowViewQuotation] = useState(false);
   const [selectedRFQ, setSelectedRFQ] = useState<RFQ | null>(null);
   const [selectedQuotation, setSelectedQuotation] =
+    useState<VendorQuotation | null>(null);
+  const [selectedQuotationForView, setSelectedQuotationForView] =
     useState<VendorQuotation | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedRFQForQuotation, setSelectedRFQForQuotation] = useState("");
   const [rfqs, setRfqs] = useState<RFQ[]>([]);
+  const [approvedRFQs, setApprovedRFQs] = useState<RFQ[]>([]); // For Vendor Quotation section
   const [quotations, setQuotations] = useState<VendorQuotation[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -61,9 +60,47 @@ const VendorQuotation: React.FC = () => {
     if (activeTab === "rfq") {
       fetchRFQs();
     } else if (activeTab === "quotation") {
+      fetchApprovedRFQs();
       fetchQuotations();
     }
   }, [activeTab]);
+  // Fetch only approved RFQs for Vendor Quotation section
+  const fetchApprovedRFQs = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const response = await axios.get(
+        `${
+          import.meta.env.VITE_API_BASE_URL
+        }/rfq/filter?approval_status=APPROVED`
+      );
+      if (response.data?.data) {
+        const mappedRFQs = response.data.data.map((rfq: any) => ({
+          id: rfq.id,
+          rfqNo: rfq.rfq_number,
+          deliveryLocation: "N/A",
+          vendorOptions: [],
+          rfqDate: rfq.rfq_date
+            ? new Date(rfq.rfq_date).toISOString().split("T")[0]
+            : "",
+          endDate: rfq.rfq_end_date
+            ? new Date(rfq.rfq_end_date).toISOString().split("T")[0]
+            : "",
+          approvedBy: rfq.approved_by || "",
+          approvedOn: rfq.approved_on
+            ? new Date(rfq.approved_on).toISOString().split("T")[0]
+            : "",
+          status: rfq.approval_status?.toLowerCase() || "pending",
+        }));
+        setApprovedRFQs(mappedRFQs);
+      }
+    } catch (err) {
+      console.error("Error fetching approved RFQs:", err);
+      setError("Failed to fetch approved RFQs");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const fetchRFQs = async () => {
     setLoading(true);
@@ -111,6 +148,7 @@ const VendorQuotation: React.FC = () => {
         const mappedQuotations = response.data.data.map((quotation: any) => ({
           id: quotation.id,
           quotationNo: `VQ-${quotation.id.slice(0, 8)}`, // Generate display number
+          rfqId: quotation.rfq_id || quotation.rfq?.id, // RFQ ID for filtering
           rfqNo: quotation.rfq_number || "N/A", // From joined RFQ table
           requestedBy: quotation.created_by || "System",
           requestedOn: quotation.created_at
@@ -151,9 +189,58 @@ const VendorQuotation: React.FC = () => {
     setShowApproveRFQ(true);
   };
 
-  const handleApproveQuotation = (quotation: VendorQuotation) => {
-    setSelectedQuotation(quotation);
-    setShowApproveQuotation(true);
+  const handleApproveQuotation = async (quotation: VendorQuotation) => {
+    try {
+      setLoading(true);
+      const response = await axios.get(
+        `${import.meta.env.VITE_API_BASE_URL}/vendor-quotation/${quotation.id}`
+      );
+      console.log("API Response:", response.data); // Debug log
+      if (response.data) {
+        // Map the API response to the quotation object with detailed data
+        const quotationWithDetails = {
+          ...quotation,
+          details: response.data, // Store the entire response
+        };
+        setSelectedQuotation(quotationWithDetails);
+        setShowApproveQuotation(true);
+      } else {
+        console.error("No data received from API");
+        setError("No quotation data received");
+      }
+    } catch (err) {
+      console.error("Error fetching quotation details:", err);
+      setError("Failed to fetch quotation details");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleViewQuotation = async (quotation: VendorQuotation) => {
+    try {
+      setLoading(true);
+      const response = await axios.get(
+        `${import.meta.env.VITE_API_BASE_URL}/vendor-quotation/${quotation.id}`
+      );
+      console.log("API Response for view:", response.data); // Debug log
+      if (response.data) {
+        // Map the API response to the quotation object with detailed data
+        const quotationWithDetails = {
+          ...quotation,
+          details: response.data, // Store the entire response
+        };
+        setSelectedQuotationForView(quotationWithDetails);
+        setShowViewQuotation(true);
+      } else {
+        console.error("No data received from API");
+        setError("No quotation data received");
+      }
+    } catch (err) {
+      console.error("Error fetching quotation details:", err);
+      setError("Failed to fetch quotation details");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleViewRFQ = async (rfq: RFQ) => {
@@ -185,7 +272,7 @@ const VendorQuotation: React.FC = () => {
 
   const filteredQuotations = quotations.filter(
     (quotation) =>
-      !selectedRFQForQuotation || quotation.rfqNo === selectedRFQForQuotation
+      !selectedRFQForQuotation || quotation.rfqId === selectedRFQForQuotation
   );
 
   const renderRFQManagement = () => (
@@ -342,8 +429,8 @@ const VendorQuotation: React.FC = () => {
               className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="">Select RFQ*</option>
-              {rfqs.map((rfq) => (
-                <option key={rfq.id} value={rfq.rfqNo}>
+              {approvedRFQs.map((rfq) => (
+                <option key={rfq.id} value={rfq.id}>
                   {rfq.rfqNo}
                 </option>
               ))}
@@ -445,6 +532,7 @@ const VendorQuotation: React.FC = () => {
                     <td className="py-4 px-4">
                       <div className="flex items-center justify-center space-x-2">
                         <button
+                          onClick={() => handleViewQuotation(quotation)}
                           className="p-1 text-blue-600 hover:text-blue-800 transition-colors"
                           title="View"
                         >
@@ -554,7 +642,13 @@ const VendorQuotation: React.FC = () => {
       {showQuotationEntry && (
         <VendorQuotationEntry
           isOpen={showQuotationEntry}
-          onClose={() => setShowQuotationEntry(false)}
+          onClose={() => {
+            setShowQuotationEntry(false);
+            // Refresh quotations list after closing the modal
+            if (activeTab === "quotation") {
+              fetchQuotations();
+            }
+          }}
           selectedRFQ={selectedRFQForQuotation}
         />
       )}
@@ -565,8 +659,24 @@ const VendorQuotation: React.FC = () => {
           onClose={() => {
             setShowApproveQuotation(false);
             setSelectedQuotation(null);
+            // Refresh quotations list after approval/rejection
+            if (activeTab === "quotation") {
+              fetchQuotations();
+            }
           }}
           quotation={selectedQuotation}
+        />
+      )}
+
+      {/* View Quotation Modal */}
+      {showViewQuotation && selectedQuotationForView && (
+        <ViewQuotationModal
+          isOpen={showViewQuotation}
+          onClose={() => {
+            setShowViewQuotation(false);
+            setSelectedQuotationForView(null);
+          }}
+          quotation={selectedQuotationForView}
         />
       )}
     </div>

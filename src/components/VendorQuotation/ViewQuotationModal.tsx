@@ -1,22 +1,13 @@
-import React, { useState } from "react";
-import {
-  X,
-  FileText,
-  User,
-  Calendar,
-  Package,
-  CheckCircle,
-  XCircle,
-} from "lucide-react";
-import axios from "axios";
+import React from "react";
+import { X, FileText, User, Calendar, Package } from "lucide-react";
 
-interface ApproveQuotationModalProps {
+interface ViewQuotationModalProps {
   isOpen: boolean;
   onClose: () => void;
   quotation: {
     id: string;
     quotationNo: string;
-    rfq_number: string;
+    rfqNo: string;
     requestedBy: string;
     requestedOn: string;
     vendor: string;
@@ -27,21 +18,11 @@ interface ApproveQuotationModalProps {
   };
 }
 
-const ApproveQuotationModal: React.FC<ApproveQuotationModalProps> = ({
+const ViewQuotationModal: React.FC<ViewQuotationModalProps> = ({
   isOpen,
   onClose,
   quotation,
 }) => {
-  const [comment, setComment] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-
-  // TODO: Replace with actual user ID from authentication context
-  const getCurrentUserId = () => {
-    // This should be replaced with actual user ID from your auth system
-    return "00000000-0000-0000-0000-000000000000";
-  };
-
   if (!isOpen) return null;
 
   // Helper function to deduplicate items by item_id without aggregating quantities
@@ -64,8 +45,7 @@ const ApproveQuotationModal: React.FC<ApproveQuotationModalProps> = ({
   const quotationDetails = quotation.details
     ? {
         indentId: quotation.details.indentDetails?.indent_id || "N/A",
-        rfqNo:
-          quotation.details.rfq?.rfq_number || quotation.rfq_number || "N/A",
+        rfqNo: quotation.details.rfq?.rfqNo || quotation.rfqNo || "N/A",
         vendor:
           quotation.details.vendorQuotation?.vendor_name ||
           quotation.vendor ||
@@ -126,63 +106,16 @@ const ApproveQuotationModal: React.FC<ApproveQuotationModalProps> = ({
         totalQuotationValue: 0,
       };
 
-  const handleApprove = async () => {
-    if (!comment.trim()) {
-      setError("Please provide an approval comment");
-      return;
-    }
-
-    setLoading(true);
-    setError("");
-    try {
-      await axios.patch(
-        `${import.meta.env.VITE_API_BASE_URL}/vendor-quotation/${
-          quotation.id
-        }/approval`,
-        {
-          approval_status: "APPROVED",
-          approved_by: getCurrentUserId(),
-          approved_on: new Date().toISOString(),
-          approval_comment: comment,
-        }
-      );
-      console.log("Quotation approved successfully");
-      onClose();
-    } catch (error: any) {
-      console.error("Error approving quotation:", error);
-      setError(error.response?.data?.message || "Failed to approve quotation");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleReject = async () => {
-    if (!comment.trim()) {
-      setError("Please provide a rejection comment");
-      return;
-    }
-
-    setLoading(true);
-    setError("");
-    try {
-      await axios.patch(
-        `${import.meta.env.VITE_API_BASE_URL}/vendor-quotation/${
-          quotation.id
-        }/approval`,
-        {
-          approval_status: "REJECTED",
-          approved_by: getCurrentUserId(),
-          approved_on: new Date().toISOString(),
-          approval_comment: comment,
-        }
-      );
-      console.log("Quotation rejected successfully");
-      onClose();
-    } catch (error: any) {
-      console.error("Error rejecting quotation:", error);
-      setError(error.response?.data?.message || "Failed to reject quotation");
-    } finally {
-      setLoading(false);
+  const getStatusColor = (status: string) => {
+    switch (status.toLowerCase()) {
+      case "approved":
+        return "bg-green-100 text-green-800";
+      case "pending":
+        return "bg-yellow-100 text-yellow-800";
+      case "rejected":
+        return "bg-red-100 text-red-800";
+      default:
+        return "bg-gray-100 text-gray-800";
     }
   };
 
@@ -191,12 +124,17 @@ const ApproveQuotationModal: React.FC<ApproveQuotationModalProps> = ({
       <div className="bg-white rounded-lg shadow-xl max-w-6xl w-full mx-4 max-h-[95vh] overflow-y-auto">
         <div className="flex items-center justify-between p-6 border-b border-gray-200">
           <div className="flex items-center space-x-3">
-            <FileText className="w-6 h-6 text-orange-600" />
+            <FileText className="w-6 h-6 text-blue-600" />
             <h2 className="text-xl font-semibold text-gray-900">
-              Approve Vendor Quotation
+              View Vendor Quotation Details
             </h2>
-            <span className="px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
-              Pending Approval
+            <span
+              className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(
+                quotation.status
+              )}`}
+            >
+              {quotation.status.charAt(0).toUpperCase() +
+                quotation.status.slice(1)}
             </span>
           </div>
           <button
@@ -373,7 +311,7 @@ const ApproveQuotationModal: React.FC<ApproveQuotationModalProps> = ({
                               : "N/A"}
                           </td>
                           <td className="py-3 px-4 text-gray-600">
-                            {milestone.charges_amount
+                            {milestone.charges_amount != 0
                               ? `₹${milestone.charges_amount}`
                               : milestone.charges_percent
                               ? `${milestone.charges_percent}%`
@@ -518,46 +456,14 @@ const ApproveQuotationModal: React.FC<ApproveQuotationModalProps> = ({
               </table>
             </div>
           </div>
-
-          {/* Approval Comment */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Approval Comment
-            </label>
-            <textarea
-              rows={4}
-              value={comment}
-              onChange={(e) => setComment(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="Enter your approval or rejection comments..."
-            />
-            {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
-          </div>
         </div>
 
         <div className="flex items-center justify-end space-x-3 p-6 border-t border-gray-200">
           <button
             onClick={onClose}
-            disabled={loading}
-            className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
           >
-            Cancel
-          </button>
-          <button
-            onClick={handleReject}
-            disabled={loading}
-            className="flex items-center space-x-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <XCircle className="w-4 h-4" />
-            <span>{loading ? "Rejecting..." : "Reject"}</span>
-          </button>
-          <button
-            onClick={handleApprove}
-            disabled={loading}
-            className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <CheckCircle className="w-4 h-4" />
-            <span>{loading ? "Approving..." : "Approve"}</span>
+            Close
           </button>
         </div>
       </div>
@@ -565,4 +471,4 @@ const ApproveQuotationModal: React.FC<ApproveQuotationModalProps> = ({
   );
 };
 
-export default ApproveQuotationModal;
+export default ViewQuotationModal;
