@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Plus, Search, Eye, Edit, CheckCircle, Filter } from "lucide-react";
+import { Plus, Search, Eye, Edit, CheckCircle, Filter, FileText  } from "lucide-react";
 import axios from "axios";
 import CreateRFQModal from "./CreateRFQModal";
 import ApproveRFQModal from "./ApproveRFQModal";

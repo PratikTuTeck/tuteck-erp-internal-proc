@@ -185,8 +185,8 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
           name: vendor.business_name,
           address: `${vendor.city}, ${vendor.district}, ${vendor.state}, ${vendor.pincode}`,
           bankName: vendor.bank_name,
-          gstNo: vendor.gst_number,
-          accountNo: vendor.bank_account_number,
+          gstNumber: vendor.gst_number,
+          accountNumber: vendor.bank_account_number,
           ifscCode: vendor.ifsc_code,
         }));
         setVendors(mappedVendors);
@@ -207,6 +207,7 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
         const mappedWarehouses = response.data.data.map((warehouse: any) => ({
           id: warehouse.id,
           name: warehouse.warehouse_name,
+          address: warehouse.address || "",
         }));
         setWarehouses(mappedWarehouses);
       }
@@ -1271,7 +1272,7 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
         )}
 // =======
         </div> */}
-// >>>>>>> main
+{/* // >>>>>>> main */}
 
         {/* Item Details */}
         <div>
@@ -1292,7 +1293,8 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
           </div>
 
           <div className="overflow-x-auto">
-<!-- <<<<<<< feature/mijanur/po -->
+          { sourceType === "indent" ? 
+            (filteredItems.length > 0 ? (
             <table className="w-full border border-gray-200 rounded-lg">
               <thead className="bg-gray-50">
                 <tr>
@@ -1362,9 +1364,15 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
                   </tr>
                 ))}
               </tbody>
-            </table>
-<!-- ======= -->
-            {filteredItems.length > 0 ? (
+            </table>): (
+              <div className="text-center py-8 text-gray-500 border border-gray-200 rounded-lg bg-gray-50">
+                <p>No items available</p>
+                <p className="text-sm mt-1">
+                  Items will be loaded based on indent selection
+                </p>
+              </div>
+            )) :
+            (filteredItems.length > 0 ? (
               <table className="w-full border border-gray-200 rounded-lg">
                 <thead className="bg-gray-50">
                   <tr>
@@ -1443,13 +1451,11 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
               <div className="text-center py-8 text-gray-500 border border-gray-200 rounded-lg bg-gray-50">
                 <p>No items available</p>
                 <p className="text-sm mt-1">
-                  {sourceType === "quotation"
-                    ? "Select a vendor to load items from quotation"
-                    : "Items will be loaded based on indent selection"}
+                  Select a vendor to load items from quotation
                 </p>
               </div>
-            )}
-<!-- >>>>>>> main -->
+            ))
+          }
           </div>
         </div>
 

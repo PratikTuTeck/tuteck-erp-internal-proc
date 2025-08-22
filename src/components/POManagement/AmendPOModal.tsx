@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { X, Search, Edit, Save, AlertTriangle } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { X, Search, Edit, Save, AlertTriangle, Loader2 } from 'lucide-react';
 
 interface AmendPOModalProps {
   isOpen: boolean;
@@ -37,6 +37,58 @@ interface AmendPOModalProps {
   };
 }
 
+interface ApiPOData {
+  purchase_order: {
+    id: string;
+    po_number: string;
+    po_date: string;
+    vendor_id: string;
+    total_amount: string;
+    po_status: string;
+    po_type: string;
+    bank_name: string;
+    account_no: string;
+    ifsc_code: string;
+    sgst: string;
+    cgst: string;
+    igst: string;
+    gst: string;
+  };
+  vendor_details: {
+    vendor_id: string;
+    business_name: string;
+    contact_no: string;
+    city: string;
+    state: string;
+    district: string;
+    pincode: string;
+  } | null;
+  items: Array<{
+    id: string;
+    po_id: string;
+    item_id: string;
+    qty: string;
+    rate: string;
+    item_details: {
+      id: string;
+      item_code: string;
+      item_name: string;
+      hsn_code: string;
+      uom_value: string;
+    } | null;
+  }>;
+  warehouse_details: Array<{
+    warehouse_name: string;
+    address: string;
+  }>;
+  payment_terms: Array<{
+    payment_terms_type: string;
+    charges_amount: string;
+    charges_percent: string;
+    note: string;
+  }>;
+}
+
 interface AmendableItem {
   id: string;
   slNo: number;
@@ -53,42 +105,102 @@ interface AmendableItem {
 
 const AmendPOModal: React.FC<AmendPOModalProps> = ({ isOpen, onClose, po }) => {
   const [searchTerm, setSearchTerm] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [apiData, setApiData] = useState<ApiPOData | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  
   const [formData, setFormData] = useState({
-    parentPO: po.poNo,
-    rfq: po.type === 'Quotation' ? 'RFQ-001' : '',
-    rfqDate: '2024-07-10',
-    deliveryLocation: po.warehouseName,
-    vendorAddress: po.vendorAddress,
-    bankName: po.vendorDetails.bankName,
-    accountNo: po.vendorDetails.accountNo,
-    ifscCode: po.vendorDetails.ifscCode,
-    cgst: po.vendorDetails.cgst,
-    sgst: po.vendorDetails.sgst,
-    igst: po.vendorDetails.igst
+    parentPO: '',
+    rfq: '',
+    rfqDate: '',
+    deliveryLocation: '',
+    vendorAddress: '',
+    bankName: '',
+    accountNo: '',
+    ifscCode: '',
+    cgst: 0,
+    sgst: 0,
+    igst: 0
   });
 
-  const [items, setItems] = useState<AmendableItem[]>(
-    po.items.map((item, index) => ({
-      id: index.toString(),
+  const [items, setItems] = useState<AmendableItem[]>([]);
+
+  // Fetch PO data from API
+  useEffect(() => {
+    if (isOpen && po?.id) {
+      fetchPOData(po.id);
+    }
+  }, [isOpen, po?.id]);
+
+  const fetchPOData = async (poId: string) => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/purchase-order/${poId}`);
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch purchase order data');
+      }
+      
+      const result = await response.json();
+      
+      if (result.success) {
+        setApiData(result.data);
+        mapApiDataToFormData(result.data);
+      } else {
+        throw new Error(result.clientMessage || 'Failed to fetch purchase order data');
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An error occurred');
+      console.error('Error fetching PO data:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const mapApiDataToFormData = (data: ApiPOData) => {
+    const { purchase_order, vendor_details, items: apiItems, warehouse_details } = data;
+    
+    // Update form data
+    setFormData({
+      parentPO: purchase_order.po_number,
+      rfq: purchase_order.po_type === 'RFQ' ? purchase_order.po_number : '',
+      rfqDate: purchase_order.po_date ? new Date(purchase_order.po_date).toISOString().split('T')[0] : '',
+      deliveryLocation: warehouse_details[0]?.warehouse_name || '',
+      vendorAddress: vendor_details ? `${vendor_details.city}, ${vendor_details.state}, ${vendor_details.district} - ${vendor_details.pincode}` : '',
+      bankName: purchase_order.bank_name || '',
+      accountNo: purchase_order.account_no || '',
+      ifscCode: purchase_order.ifsc_code || '',
+      cgst: Number(purchase_order.cgst) || 0,
+      sgst: Number(purchase_order.sgst) || 0,
+      igst: Number(purchase_order.igst) || 0
+    });
+
+    // Map items
+    const mappedItems: AmendableItem[] = apiItems.map((item, index) => ({
+      id: item.id,
       slNo: index + 1,
-      hsnCode: item.hsnCode,
-      itemCode: item.itemCode,
-      itemName: item.itemName,
-      uom: item.uom,
-      rate: item.rate,
-      quantity: item.quantity,
-      totalPrice: item.total,
+      hsnCode: item.item_details?.hsn_code || '',
+      itemCode: item.item_details?.item_code || '',
+      itemName: item.item_details?.item_name || '',
+      uom: item.item_details?.uom_value || '',
+      rate: Number(item.rate) || 0,
+      quantity: Number(item.qty) || 0,
+      totalPrice: (Number(item.rate) || 0) * (Number(item.qty) || 0),
       selected: false,
       isEditing: false
-    }))
-  );
+    }));
+
+    setItems(mappedItems);
+  };
 
   if (!isOpen) return null;
 
-  const parentPOs = [
-    { id: po.poNo, name: po.poNo },
-    { id: 'PO-2024-001', name: 'PO-2024-001' },
-    { id: 'PO-2024-002', name: 'PO-2024-002' }
+  const parentPOs = apiData ? [
+    { id: apiData.purchase_order.po_number, name: apiData.purchase_order.po_number }
+  ] : [
+    { id: formData.parentPO, name: formData.parentPO || 'Loading...' }
   ];
 
   const handleItemSelect = (itemId: string) => {
@@ -157,7 +269,7 @@ const AmendPOModal: React.FC<AmendPOModalProps> = ({ isOpen, onClose, po }) => {
             <Edit className="w-6 h-6 text-purple-600" />
             <h2 className="text-xl font-semibold text-gray-900">Amend Purchase Order</h2>
             <span className="px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
-              {po.poNo}
+              {apiData?.purchase_order?.po_number || po.poNo || 'Loading...'}
             </span>
           </div>
           <button
@@ -169,9 +281,39 @@ const AmendPOModal: React.FC<AmendPOModalProps> = ({ isOpen, onClose, po }) => {
         </div>
 
         <div className="p-6 space-y-8">
-          {/* Header Section */}
-          <div>
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Header Section</h3>
+          {/* Loading State */}
+          {loading && (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+              <span className="ml-3 text-gray-600">Loading purchase order data...</span>
+            </div>
+          )}
+
+          {/* Error State */}
+          {error && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+              <div className="flex items-center space-x-3">
+                <AlertTriangle className="w-5 h-5 text-red-600" />
+                <div>
+                  <h4 className="text-sm font-medium text-red-800">Error Loading Data</h4>
+                  <p className="text-sm text-red-700 mt-1">{error}</p>
+                  <button
+                    onClick={() => fetchPOData(po.id)}
+                    className="mt-2 text-sm text-red-600 hover:text-red-800 underline"
+                  >
+                    Try Again
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Content - Show only when not loading and no error */}
+          {!loading && !error && (
+            <>
+              {/* Header Section */}
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">Header Section</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -436,6 +578,8 @@ const AmendPOModal: React.FC<AmendPOModalProps> = ({ isOpen, onClose, po }) => {
               </div>
             </div>
           </div>
+            </>
+          )}
         </div>
 
         <div className="flex items-center justify-end space-x-3 p-6 border-t border-gray-200">
