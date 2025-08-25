@@ -114,6 +114,7 @@ interface APIResponse {
         description: string;
         category_id: string;
         uom_id: string;
+        uom_name: string;
       } | null;
     }>;
     warehouse_details: Array<{
@@ -647,7 +648,7 @@ const EditPOModal: React.FC<EditPOModalProps> = ({ isOpen, onClose, po }) => {
                           itemCode: item.item_details?.item_code || `ITEM-${index + 1}`,
                           itemName: item.item_details?.item_name || 'N/A',
                           categoryName: 'N/A', // This would need to be fetched from category_id
-                          uom: 'N/A', // This would need to be fetched from uom_id
+                          uom: item.item_details?.uom_name || 'N/A', // This would need to be fetched from uom_id
                           hsnCode: item.item_details?.hsn_code || 'N/A',
                           rate: Number(item.rate) || 0,
                           quantity: Number(item.qty) || 0,
