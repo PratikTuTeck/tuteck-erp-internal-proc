@@ -256,7 +256,7 @@ const AmendPOModal: React.FC<AmendPOModalProps> = ({ isOpen, onClose, po }) => {
     });
 
     const mappedItems: AmendableItem[] = apiItems.map((item, index) => ({
-      id: item.id,
+      id: item.item_id,
       slNo: index + 1,
       hsnCode: item.item_details?.hsn_code || '',
       itemCode: item.item_details?.item_code || '',
