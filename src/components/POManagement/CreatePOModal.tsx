@@ -139,7 +139,7 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
               acc.push({
                 id: vendor.vendor_id,
                 name: vendor.business_name,
-                address: "", // Address not available in RFQ vendor response
+                address: `${vendor.city}, ${vendor.district}, ${vendor.state}, ${vendor.pincode}`,
                 bankName: vendor.bank_name || "",
                 gstNumber: vendor.gst_number || "",
                 accountNumber: vendor.bank_account_number || "",
