@@ -579,15 +579,12 @@ const AmendPOModal: React.FC<AmendPOModalProps> = ({ isOpen, onClose, po }) => {
                       <label className="block text-sm font-medium text-gray-700 mb-2">
                         Parent PO / PO
                       </label>
-                      <select 
-                        value={formData.parentPO}
-                        onChange={(e) => setFormData({...formData, parentPO: e.target.value})}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      >
-                        {parentPOs.map(parentPO => (
-                          <option key={parentPO.id} value={parentPO.id}>{parentPO.name}</option>
-                        ))}
-                      </select>
+                      <input
+                          type="text"
+                          value={formData.parentPO}
+                          readOnly
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-600"
+                        />
                     </div>
 
                     {formData.poOriginType === 'RFQ' && (

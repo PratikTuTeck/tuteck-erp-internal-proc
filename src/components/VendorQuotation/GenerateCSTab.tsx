@@ -520,8 +520,8 @@ const GenerateCSTab: React.FC = () => {
                         {item.itemCode} - {item.itemName}
                       </td>
                       <td className="py-3 px-4 text-gray-600">
-                        {item.vendorOptions
-                          .map((vendor) => vendor.business_name || vendor)
+                        {[...new Set(item.vendorOptions
+                          .map((vendor) => vendor.business_name || vendor))]
                           .join(", ")}
                       </td>
                       <td className="py-3 px-4 text-gray-600">
