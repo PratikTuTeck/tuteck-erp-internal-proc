@@ -102,8 +102,8 @@ const POManagement: React.FC = () => {
           parentPO: po.reference_purchase_id
             ? `PO-REF-${po.reference_purchase_id.slice(0, 8)}`
             : undefined,
-          vendorName: po.vendor_name || "N/A", // From joined vendor table
-          contactNo: po.vendor_contact || "N/A", // From joined vendor table
+          vendorName: po.vendor_details.business_name || "N/A", // From joined vendor table
+          contactNo: po.vendor_details.contact_no || "N/A", // From joined vendor table
           poDate: po.po_date
             ? new Date(po.po_date).toISOString().split("T")[0]
             : "",
@@ -129,7 +129,6 @@ const POManagement: React.FC = () => {
           paymentTerms: po.payment_terms || [], // This would come from a separate payment terms table
           warehouse_details: [],
           payment_terms: [],
-
         }));
         setPurchaseOrders(mappedPOs);
       }
@@ -174,7 +173,6 @@ const POManagement: React.FC = () => {
     try {
       const response = await axios.get(
         `${import.meta.env.VITE_API_BASE_URL}/purchase-order/${po.id}`
-
       );
       if (response.data?.data) {
         const apiData = response.data.data;
@@ -243,7 +241,6 @@ const POManagement: React.FC = () => {
             amount: term.charges_amount,
             reason: term.note,
           })),
-
         };
 
         setSelectedPO(detailedPO);
@@ -512,7 +509,7 @@ const POManagement: React.FC = () => {
                     <td className="py-4 px-4 text-gray-600">{po.contactNo}</td>
                     <td className="py-4 px-4 text-gray-600">{po.poDate}</td>
                     <td className="py-4 px-4 font-medium text-gray-900">
-                      ₹{po.poAmount.toLocaleString()}
+                      ₹{parseFloat(po.poAmount.toLocaleString()).toFixed(2)}
                     </td>
                     <td className="py-4 px-4 text-gray-600">
                       {po.approvedBy || "-"}
