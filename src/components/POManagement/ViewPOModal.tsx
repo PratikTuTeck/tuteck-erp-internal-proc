@@ -1,33 +1,64 @@
-import React from "react";
-import { X, FileText, User, Calendar, Package, MapPin } from "lucide-react";
+import React, { useState } from "react";
+import {
+  X,
+  FileText,
+  User,
+  Calendar,
+  Package,
+  MapPin,
+  ChevronDown,
+  ChevronRight,
+} from "lucide-react";
 
 interface ViewPOModalProps {
   isOpen: boolean;
   onClose: () => void;
   po: {
+    // Purchase order basic info
     id: string;
     poNo: string;
     parentPO?: string;
-    vendorName: string;
-    contactNo: string;
     poDate: string;
     poAmount: number;
     approvedBy?: string;
     approvedOn?: string;
     status: string;
     type: string;
+    gstNo: string;
+    // Vendor info
+    vendorName: string;
+    contactNo: string;
     vendorAddress: string;
     warehouseName?: string;
-    gstNo: string;
+    // Items from API
     items: Array<{
-      itemCode: string;
-      itemName: string;
-      categoryName: string;
-      uom: string;
-      hsnCode: string;
-      rate: number;
-      quantity: number;
-      total: number;
+      id: string;
+      po_id: string;
+      item_id: string;
+      qty: string;
+      rate: string;
+      notes: string;
+      qs_approved: boolean;
+      vendor_id: string;
+      warehouse_id: string | null;
+      warehouse_code: string | null;
+      item_details: {
+        id: string;
+        item_code: string;
+        item_name: string;
+        hsn_code: string;
+        description: string;
+        material_type: string;
+        category_id: string;
+        brand_id: string;
+        uom_id: string;
+        installation_rate: string;
+        unit_price: string;
+        uom_value: string;
+        is_capital_item: boolean;
+        is_scrap_item: boolean;
+        uom_name: string | null;
+      };
     }>;
     vendorDetails: {
       bankName: string;
@@ -54,7 +85,15 @@ interface ViewPOModalProps {
 }
 
 const ViewPOModal: React.FC<ViewPOModalProps> = ({ isOpen, onClose, po }) => {
+  const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
+
   if (!isOpen) return null;
+
+  // Debug log to check data structure
+  console.log("PO Data:", po);
+  console.log("PO Items:", po.items);
+  console.log("Items length:", po.items?.length);
+  console.log("First item:", po.items?.[0]);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -73,7 +112,52 @@ const ViewPOModal: React.FC<ViewPOModalProps> = ({ isOpen, onClose, po }) => {
     }
   };
 
-  const totalAmount = po.items.reduce((sum, item) => sum + item.total, 0);
+  // Group items by item_id to show unique items
+  const groupedItems = (po.items || []).reduce((acc, item) => {
+    // Skip items without item_details or item_id
+    if (!item.item_details || !item.item_id) {
+      return acc;
+    }
+
+    const itemId = item.item_id;
+    if (!acc[itemId]) {
+      acc[itemId] = {
+        item_details: item.item_details,
+        entries: [],
+      };
+    }
+    acc[itemId].entries.push(item);
+    return acc;
+  }, {} as Record<string, { item_details: (typeof po.items)[0]["item_details"]; entries: typeof po.items }>);
+
+  // Calculate total amount from all items
+  const totalAmount =
+    po.items?.reduce((sum, item) => {
+      const rate = parseFloat(item?.rate || "0") || 0;
+      const qty = parseFloat(item?.qty || "0") || 0;
+      return sum + rate * qty;
+    }, 0) || 0;
+
+  const toggleItemExpansion = (itemId: string) => {
+    const newExpanded = new Set(expandedItems);
+    if (newExpanded.has(itemId)) {
+      newExpanded.delete(itemId);
+    } else {
+      newExpanded.add(itemId);
+    }
+    setExpandedItems(newExpanded);
+  };
+
+  const getWarehouseName = (
+    warehouseId: string | null,
+    warehouseCode: string | null
+  ) => {
+    if (!warehouseId || !warehouseCode) return "Unassigned";
+    const warehouse = po.warehouse_details.find((w) => w.id === warehouseId);
+    return warehouse
+      ? `${warehouse.warehouse_name} (${warehouse.warehouse_code})`
+      : warehouseCode;
+  };
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -333,76 +417,181 @@ const ViewPOModal: React.FC<ViewPOModalProps> = ({ isOpen, onClose, po }) => {
             <h3 className="text-lg font-semibold text-gray-900 mb-4">
               Item Details
             </h3>
-            <div className="overflow-x-auto">
-              <table className="w-full border border-gray-200 rounded-lg">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="text-left py-3 px-4 font-medium text-gray-900">
-                      Item Code
-                    </th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-900">
-                      Item Name
-                    </th>
-                    {/* <th className="text-left py-3 px-4 font-medium text-gray-900">Category Name</th> */}
-                    <th className="text-left py-3 px-4 font-medium text-gray-900">
-                      UOM
-                    </th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-900">
-                      HSN Code
-                    </th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-900">
-                      Rate
-                    </th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-900">
-                      Quantity to be Purchased
-                    </th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-900">
-                      Total (Rate * Quantity)
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {po.items.map((item, index) => (
-                    <tr key={index} className="border-t border-gray-200">
-                      <td className="py-3 px-4 font-medium text-gray-900">
-                        {item.itemCode}
-                      </td>
-                      <td className="py-3 px-4 text-gray-600">
-                        {item.itemName}
-                      </td>
-                      {/* <td className="py-3 px-4 text-gray-600">
-                        {item.categoryName}
-                      </td> */}
-                      <td className="py-3 px-4 text-gray-600">{item.uom}</td>
-                      <td className="py-3 px-4 text-gray-600">
-                        {item.hsnCode}
-                      </td>
-                      <td className="py-3 px-4 text-gray-600">
-                        ₹{item.rate.toLocaleString()}
-                      </td>
-                      <td className="py-3 px-4 text-gray-600">
-                        {item.quantity}
-                      </td>
-                      <td className="py-3 px-4 font-medium text-gray-900">
-                        ₹{item.total.toLocaleString()}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-                <tfoot className="bg-gray-50">
-                  <tr>
-                    <td
-                      colSpan={7}
-                      className="py-3 px-4 font-medium text-gray-900 text-right"
+
+            {/* Header Row */}
+            <div className="mb-2">
+              <div className="grid grid-cols-7 gap-4 text-sm font-medium text-gray-500 px-4 py-2 bg-gray-50 rounded-lg">
+                <div>Item Code</div>
+                <div>Item Name</div>
+                <div>UOM</div>
+                <div>HSN Code</div>
+                <div>Rate</div>
+                <div>Total Quantity</div>
+                <div>Total Value</div>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              {Object.keys(groupedItems).length === 0 ? (
+                <div className="text-center py-8 text-gray-500">
+                  No items found in this purchase order.
+                </div>
+              ) : (
+                Object.entries(groupedItems).map(([itemId, itemGroup]) => {
+                  // Safety check for item_details
+                  if (!itemGroup.item_details) {
+                    return null;
+                  }
+
+                  const isExpanded = expandedItems.has(itemId);
+                  const totalQty = itemGroup.entries.reduce(
+                    (sum, entry) => sum + parseFloat(entry.qty),
+                    0
+                  );
+                  const totalValue = itemGroup.entries.reduce((sum, entry) => {
+                    const rate = parseFloat(entry.rate) || 0;
+                    const qty = parseFloat(entry.qty) || 0;
+                    return sum + rate * qty;
+                  }, 0);
+
+                  return (
+                    <div
+                      key={itemId}
+                      className="border border-gray-200 rounded-lg"
                     >
-                      Total Amount:
-                    </td>
-                    <td className="py-3 px-4 font-bold text-gray-900">
-                      ₹{totalAmount.toLocaleString()}
-                    </td>
-                  </tr>
-                </tfoot>
-              </table>
+                      {/* Main Item Row */}
+                      <div
+                        className="p-4 cursor-pointer hover:bg-gray-50 transition-colors"
+                        onClick={() => toggleItemExpansion(itemId)}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center space-x-3">
+                            {isExpanded ? (
+                              <ChevronDown className="w-4 h-4 text-gray-500" />
+                            ) : (
+                              <ChevronRight className="w-4 h-4 text-gray-500" />
+                            )}
+                            <div className="grid grid-cols-7 gap-4 flex-1">
+                              <div>
+                                <p className="font-medium text-gray-900">
+                                  {itemGroup.item_details?.item_code || "N/A"}
+                                </p>
+                              </div>
+                              <div>
+                                <p className="text-gray-600">
+                                  {itemGroup.item_details?.item_name || "N/A"}
+                                </p>
+                              </div>
+                              <div>
+                                <p className="text-gray-600">
+                                  {itemGroup.item_details?.uom_name || "N/A"}
+                                </p>
+                              </div>
+                              <div>
+                                <p className="text-gray-600">
+                                  {itemGroup.item_details?.hsn_code || "N/A"}
+                                </p>
+                              </div>
+                              <div>
+                                <p className="text-gray-600">
+                                  ₹
+                                  {parseFloat(
+                                    itemGroup.entries[0]?.rate || "0"
+                                  ).toLocaleString()}
+                                </p>
+                              </div>
+                              <div>
+                                <p className="text-gray-600">{totalQty}</p>
+                              </div>
+                              <div>
+                                <p className="font-medium text-gray-900">
+                                  ₹{totalValue.toLocaleString()}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Expanded Details */}
+                      {isExpanded && (
+                        <div className="border-t border-gray-200 bg-gray-50">
+                          <div className="p-4">
+                            <h4 className="text-sm font-medium text-gray-700 mb-3">
+                              Warehouse Distribution:
+                            </h4>
+                            <div className="overflow-x-auto">
+                              <table className="w-full">
+                                <thead>
+                                  <tr className="text-sm text-gray-600">
+                                    <th className="text-left py-2 px-3">
+                                      Warehouse
+                                    </th>
+                                    <th className="text-left py-2 px-3">
+                                      Quantity
+                                    </th>
+                                    <th className="text-left py-2 px-3">
+                                      Rate
+                                    </th>
+                                    <th className="text-left py-2 px-3">
+                                      Total
+                                    </th>
+                                    <th className="text-left py-2 px-3">
+                                      Notes
+                                    </th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {itemGroup.entries.map((entry) => {
+                                    const entryTotal =
+                                      parseFloat(entry?.rate || "0") *
+                                      parseFloat(entry?.qty || "0");
+                                    return (
+                                      <tr key={entry.id} className="text-sm">
+                                        <td className="py-2 px-3 text-gray-600">
+                                          {getWarehouseName(
+                                            entry.warehouse_id,
+                                            entry.warehouse_code
+                                          )}
+                                        </td>
+                                        <td className="py-2 px-3 text-gray-600">
+                                          {entry.qty || "0"}
+                                        </td>
+                                        <td className="py-2 px-3 text-gray-600">
+                                          ₹
+                                          {parseFloat(
+                                            entry?.rate || "0"
+                                          ).toLocaleString()}
+                                        </td>
+                                        <td className="py-2 px-3 text-gray-600">
+                                          ₹{entryTotal.toLocaleString()}
+                                        </td>
+                                        <td className="py-2 px-3 text-gray-600">
+                                          {entry.notes || "-"}
+                                        </td>
+                                      </tr>
+                                    );
+                                  })}
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            {/* Total Amount */}
+            <div className="mt-4 p-4 bg-gray-50 rounded-lg">
+              <div className="flex justify-between items-center">
+                <span className="font-medium text-gray-900">Total Amount:</span>
+                <span className="font-bold text-gray-900 text-lg">
+                  ₹{totalAmount.toLocaleString()}
+                </span>
+              </div>
             </div>
           </div>
 

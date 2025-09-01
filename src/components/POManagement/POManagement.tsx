@@ -70,6 +70,44 @@ interface PO {
   }>;
 }
 
+// Extended interface for detailed PO data from API (used in ViewPOModal)
+interface DetailedPO extends Omit<PO, "items"> {
+  items: Array<{
+    id: string;
+    po_id: string;
+    item_id: string;
+    qty: string;
+    rate: string;
+    notes: string;
+    qs_approved: boolean;
+    vendor_id: string;
+    warehouse_id: string | null;
+    warehouse_code: string | null;
+    item_details: {
+      id: string;
+      item_code: string;
+      item_name: string;
+      hsn_code: string;
+      description: string;
+      material_type: string;
+      category_id: string;
+      brand_id: string;
+      uom_id: string;
+      installation_rate: string;
+      unit_price: string;
+      uom_value: string;
+      is_capital_item: boolean;
+      is_scrap_item: boolean;
+      uom_name: string | null;
+    };
+  }>;
+}
+
+// Type guard to check if PO has detailed items structure
+const isDetailedPO = (po: PO | DetailedPO): po is DetailedPO => {
+  return po.items.length > 0 && "item_details" in po.items[0];
+};
+
 const POManagement: React.FC = () => {
   const [activeTab, setActiveTab] = useState("all");
   const [showCreatePO, setShowCreatePO] = useState(false);
@@ -77,7 +115,7 @@ const POManagement: React.FC = () => {
   const [showEditPO, setShowEditPO] = useState(false);
   const [showApprovePO, setShowApprovePO] = useState(false);
   const [showAmendPO, setShowAmendPO] = useState(false);
-  const [selectedPO, setSelectedPO] = useState<PO | null>(null);
+  const [selectedPO, setSelectedPO] = useState<PO | DetailedPO | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [purchaseOrders, setPurchaseOrders] = useState<PO[]>([]);
   const [loading, setLoading] = useState(false);
@@ -182,17 +220,8 @@ const POManagement: React.FC = () => {
         const warehouseDetails = apiData.warehouse_details || [];
         const paymentTerms = apiData.payment_terms || [];
 
-        // Map items from the new API response structure
-        const mappedItems = items.map((item: any) => ({
-          itemCode: item.item_details?.item_code || "",
-          itemName: item.item_details?.item_name || "",
-          categoryName: item.item_details?.category_name || "N/A", // Will need to be fetched from category API if needed
-          uom: item.item_details?.uom_name || "N/A", // Will need to be fetched from UOM API if needed
-          hsnCode: item.item_details?.hsn_code || "",
-          rate: parseFloat(item.rate) || 0,
-          quantity: parseInt(item.qty) || 0,
-          total: (parseFloat(item.rate) || 0) * (parseInt(item.qty) || 0),
-        }));
+        // Use the API items structure directly (for ViewPOModal)
+        const mappedItems = items;
 
         const detailedPO = {
           id: purchaseOrder.id,
@@ -608,7 +637,7 @@ const POManagement: React.FC = () => {
         />
       )}
 
-      {showViewPO && selectedPO && (
+      {showViewPO && selectedPO && isDetailedPO(selectedPO) && (
         <ViewPOModal
           isOpen={showViewPO}
           onClose={() => {
@@ -619,7 +648,7 @@ const POManagement: React.FC = () => {
         />
       )}
 
-      {showEditPO && selectedPO && (
+      {showEditPO && selectedPO && !isDetailedPO(selectedPO) && (
         <EditPOModal
           isOpen={showEditPO}
           onClose={() => {
@@ -630,7 +659,7 @@ const POManagement: React.FC = () => {
         />
       )}
 
-      {showApprovePO && selectedPO && (
+      {showApprovePO && selectedPO && !isDetailedPO(selectedPO) && (
         <ApprovePOModal
           isOpen={showApprovePO}
           onClose={() => {
@@ -642,7 +671,7 @@ const POManagement: React.FC = () => {
         />
       )}
 
-      {showAmendPO && selectedPO && (
+      {showAmendPO && selectedPO && !isDetailedPO(selectedPO) && (
         <AmendPOModal
           isOpen={showAmendPO}
           onClose={() => {
