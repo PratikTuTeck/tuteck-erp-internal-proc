@@ -1,7 +1,6 @@
 import React, { useState } from "react";
 import { X, Search } from "lucide-react";
 import axios from "axios";
-import { Select, MenuItem, Chip, FormControl, Box } from "@mui/material";
 
 interface CreatePOModalProps {
   isOpen: boolean;
@@ -62,7 +61,6 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
     selectedRFQ: "",
     selectedIndent: "",
     selectedVendor: "",
-    selectedWarehouses: [] as string[],
     vendorAddress: "",
     bankName: "",
     gstNo: "",
@@ -402,15 +400,6 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
     }
   };
 
-  const handleWarehouseChange = (warehouseId: string) => {
-    setFormData((prev) => ({
-      ...prev,
-      selectedWarehouses: prev.selectedWarehouses.includes(warehouseId)
-        ? prev.selectedWarehouses.filter((id) => id !== warehouseId)
-        : [...prev.selectedWarehouses, warehouseId],
-    }));
-  };
-
   const handleAddPaymentTerm = () => {
     // Only allow adding new terms if not using quotation payment terms
     const hasQuotationTerms = paymentTerms.some((term) => term.isFromQuotation);
@@ -547,34 +536,23 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
       return;
     }
 
-    // For quotation source type, validate warehouse selection
-    if (
-      sourceType === "quotation" &&
-      formData.selectedWarehouses.length === 0
-    ) {
-      alert("Please select at least one delivery warehouse");
+    // For both source types, validate warehouse allocations (only check for obvious errors)
+    const itemsWithErrors = items.filter((item) => {
+      const allocations = warehouseAllocations[item.item_id] || [];
+      // Only check for allocations that have empty warehouses or zero/negative quantities
+      const hasInvalidAllocations = allocations.some(
+        (allocation) =>
+          (allocation.warehouse_id && allocation.qty <= 0) ||
+          (!allocation.warehouse_id && allocation.qty > 0)
+      );
+      return hasInvalidAllocations;
+    });
+
+    if (itemsWithErrors.length > 0) {
+      alert(
+        `Please fix warehouse allocations: ${itemsWithErrors.length} item(s) have allocations with missing warehouse selection or invalid quantities.`
+      );
       return;
-    }
-
-    // For indent source type, validate warehouse allocations (only check for obvious errors)
-    if (sourceType === "indent") {
-      const itemsWithErrors = items.filter((item) => {
-        const allocations = warehouseAllocations[item.item_id] || [];
-        // Only check for allocations that have empty warehouses or zero/negative quantities
-        const hasInvalidAllocations = allocations.some(
-          (allocation) =>
-            (allocation.warehouse_id && allocation.qty <= 0) ||
-            (!allocation.warehouse_id && allocation.qty > 0)
-        );
-        return hasInvalidAllocations;
-      });
-
-      if (itemsWithErrors.length > 0) {
-        alert(
-          `Please fix warehouse allocations: ${itemsWithErrors.length} item(s) have allocations with missing warehouse selection or invalid quantities.`
-        );
-        return;
-      }
     }
 
     if (sourceType === "quotation") {
@@ -629,42 +607,64 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
       const poId = createdPO.id;
       console.log("PO created successfully with ID:", poId);
 
-      // Step 2: Create PO warehouse records for all selected warehouses
-      if (formData.selectedWarehouses.length > 0) {
-        const warehousePayload = formData.selectedWarehouses.map(
-          (warehouseId) => ({
-            po_id: poId,
-            warehouse_id: warehouseId,
-          })
-        );
+      // Step 2: Create PO item records with warehouse allocations
+      console.log(
+        "Creating PO items with warehouse allocations for PO ID:",
+        poId
+      );
 
-        console.log("Creating PO warehouses with payload:", warehousePayload);
-        const warehouseResponse = await axios.post(
-          `${import.meta.env.VITE_API_BASE_URL}/purchase-order-warehouse/bulk`,
-          warehousePayload
-        );
-
-        if (!warehouseResponse.data.success) {
-          throw new Error("Failed to create PO warehouse records");
-        }
-        console.log("PO warehouses created successfully");
+      // Create PO details for each warehouse allocation
+      interface PODetailPayload {
+        po_id: string;
+        vendor_id: string;
+        item_id: string;
+        qty: number;
+        rate: number;
+        notes: string;
+        qs_approved: boolean;
+        warehouse_id: string | null;
       }
 
-      // Step 3: Create PO item records for all items
-      const itemsPayload = items.map((item) => ({
-        po_id: poId,
-        item_id: item.item_id,
-        qty: item.quantity,
-        rate: item.rate,
-        notes: "",
-        qs_approved: false,
-        vendor_id: formData.selectedVendor,
-      }));
+      const poDetailsPayload: PODetailPayload[] = [];
 
-      console.log("Creating PO items with payload:", itemsPayload);
+      items.forEach((item) => {
+        const allocations = warehouseAllocations[item.item_id] || [];
+
+        if (allocations.length > 0) {
+          // Create separate PO detail records for each warehouse allocation
+          allocations.forEach((allocation) => {
+            if (allocation.warehouse_id && allocation.qty > 0) {
+              poDetailsPayload.push({
+                po_id: poId,
+                vendor_id: formData.selectedVendor,
+                item_id: item.item_id,
+                qty: allocation.qty,
+                rate: item.rate,
+                notes: "",
+                qs_approved: false,
+                warehouse_id: allocation.warehouse_id,
+              });
+            }
+          });
+        } else {
+          // If no warehouse allocations, create a single record without warehouse
+          poDetailsPayload.push({
+            po_id: poId,
+            vendor_id: formData.selectedVendor,
+            item_id: item.item_id,
+            qty: item.quantity,
+            rate: item.rate,
+            notes: "",
+            qs_approved: false,
+            warehouse_id: null,
+          });
+        }
+      });
+
+      console.log("Creating PO items with payload:", poDetailsPayload);
       const itemsResponse = await axios.post(
         `${import.meta.env.VITE_API_BASE_URL}/purchase-order-details/bulk`,
-        itemsPayload
+        poDetailsPayload
       );
 
       if (!itemsResponse.data.success) {
@@ -672,7 +672,34 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
       }
       console.log("PO items created successfully");
 
-      // Step 4: Update is_po_generated status in CS details for quotation source type
+      // Step 3: Create Purchase Order Warehouse mappings for unique warehouses
+      const uniqueWarehouseIds = Array.from(
+        new Set(
+          poDetailsPayload.map((detail) => detail.warehouse_id).filter(Boolean)
+        )
+      );
+
+      if (uniqueWarehouseIds.length > 0) {
+        const warehousePayload = uniqueWarehouseIds.map((warehouseId) => ({
+          po_id: poId,
+          warehouse_id: warehouseId,
+        }));
+
+        try {
+          await axios.post(
+            `${
+              import.meta.env.VITE_API_BASE_URL
+            }/purchase-order-warehouse/bulk`,
+            warehousePayload
+          );
+          console.log("Purchase Order warehouse mappings created successfully");
+        } catch (warehouseError) {
+          console.error("Error creating warehouse mappings:", warehouseError);
+          // Continue execution as warehouse mapping is not critical for PO creation
+        }
+      }
+
+      // Step 3: Update is_po_generated status in CS details for quotation source type
       if (sourceType === "quotation") {
         const csUpdatePromises = items
           .filter((item) => item.cs_id) // Only items with cs_id (from quotation)
@@ -904,14 +931,20 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
           poDetailsPayload
         );
 
-        // Step 3: Create Purchase Order Warehouse mappings in bulk
-        if (formData.selectedWarehouses.length > 0) {
-          const warehousePayload = formData.selectedWarehouses.map(
-            (warehouseId) => ({
-              po_id: poId,
-              warehouse_id: warehouseId,
-            })
-          );
+        // Step 3: Create Purchase Order Warehouse mappings for unique warehouses
+        const uniqueWarehouseIds = Array.from(
+          new Set(
+            poDetailsPayload
+              .map((detail) => detail.warehouse_id)
+              .filter(Boolean)
+          )
+        );
+
+        if (uniqueWarehouseIds.length > 0) {
+          const warehousePayload = uniqueWarehouseIds.map((warehouseId) => ({
+            po_id: poId,
+            warehouse_id: warehouseId,
+          }));
 
           try {
             await axios.post(
@@ -1108,56 +1141,6 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
                   </p>
                 )}
             </div>
-
-            <div className="md:col-span-3">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Delivery Warehouse
-              </label>
-              <FormControl fullWidth>
-                <Select
-                  multiple
-                  value={formData.selectedWarehouses}
-                  onChange={(e) => {
-                    const values =
-                      typeof e.target.value === "string"
-                        ? e.target.value.split(",")
-                        : e.target.value;
-                    setFormData((prev) => ({
-                      ...prev,
-                      selectedWarehouses: values,
-                    }));
-                  }}
-                  renderValue={(selected) => (
-                    <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5 }}>
-                      {selected.map((value) => {
-                        const warehouse = warehouses.find(
-                          (w) => w.id === value
-                        );
-                        return (
-                          <Chip
-                            key={value}
-                            label={warehouse?.name}
-                            onDelete={() => handleWarehouseChange(value)}
-                            size="small"
-                          />
-                        );
-                      })}
-                    </Box>
-                  )}
-                  sx={{
-                    "& .MuiOutlinedInput-root": {
-                      borderRadius: "8px",
-                    },
-                  }}
-                >
-                  {warehouses.map((warehouse) => (
-                    <MenuItem key={warehouse.id} value={warehouse.id}>
-                      {warehouse.name}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-            </div>
           </div>
 
           <div className="md:col-span-3">
@@ -1171,36 +1154,6 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
               className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-600"
             />
           </div>
-
-          {/* Warehouse Delivery Addresses */}
-          {formData.selectedWarehouses.length > 0 && (
-            <div className="md:col-span-3">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Warehouse Delivery Addresses
-              </label>
-              <div className="space-y-2">
-                {formData.selectedWarehouses.map((warehouseId) => {
-                  const warehouse = warehouses.find(
-                    (w) => w.id === warehouseId
-                  );
-
-                  return (
-                    <div
-                      key={warehouseId}
-                      className="p-3 bg-gray-50 rounded-lg"
-                    >
-                      <p className="font-medium text-gray-900">
-                        {warehouse?.name}
-                      </p>
-                      <p className="text-sm text-gray-600">
-                        {warehouse?.address || "Address not available"}
-                      </p>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
         </div>
 
         {/* Vendor Details */}
@@ -1710,80 +1663,238 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
                 </div>
               )
             ) : filteredItems.length > 0 ? (
-              <table className="w-full border border-gray-200 rounded-lg">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="text-left py-3 px-4 font-medium text-gray-900">
-                      HSN Code
-                    </th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-900">
-                      Item Code
-                    </th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-900">
-                      Item Name
-                    </th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-900">
-                      UOM
-                    </th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-900">
-                      Rate
-                    </th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-900">
-                      Quantity to be Purchased
-                    </th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-900">
-                      Total Price
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredItems.map((item) => (
-                    <tr key={item.item_id} className="border-t border-gray-200">
-                      <td className="py-3 px-4 text-gray-600">
-                        {item.hsnCode}
-                      </td>
-                      <td className="py-3 px-4 font-medium text-gray-900">
-                        {item.itemCode}
-                      </td>
-                      <td className="py-3 px-4 text-gray-600">
-                        {item.itemName}
-                      </td>
-                      <td className="py-3 px-4 text-gray-600">{item.uom}</td>
-                      <td className="py-3 px-4">
-                        <input
-                          type="number"
-                          value={item.rate}
-                          onChange={(e) =>
-                            handleItemChange(
-                              item.item_id,
-                              "rate",
-                              Number(e.target.value)
-                            )
-                          }
-                          className="w-20 px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-                        />
-                      </td>
-                      <td className="py-3 px-4">
-                        <input
-                          type="number"
-                          value={item.quantity}
-                          onChange={(e) =>
-                            handleItemChange(
-                              item.item_id,
-                              "quantity",
-                              Number(e.target.value)
-                            )
-                          }
-                          className="w-20 px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-                        />
-                      </td>
-                      <td className="py-3 px-4 font-medium text-gray-900">
-                        ₹{item.totalPrice.toLocaleString()}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              <div className="space-y-2">
+                {/* Accordion Parent Header Row */}
+                <div className="grid grid-cols-12 gap-4 text-xs font-semibold text-gray-500 uppercase bg-gray-100 rounded-t-lg px-4 py-2">
+                  <div className="col-span-2">Item</div>
+                  <div className="col-span-1">HSN Code</div>
+                  <div className="col-span-1">UOM</div>
+                  <div className="col-span-1">Rate</div>
+                  <div className="col-span-1">Total Qty</div>
+                  <div className="col-span-2">Allocated Qty</div>
+                  <div className="col-span-2">Warehouses</div>
+                  <div className="col-span-1">Total Price</div>
+                  <div className="col-span-1">Actions</div>
+                </div>
+                {filteredItems.map((item) => {
+                  const itemId = item.item_id;
+                  const isExpanded = expandedItems.has(itemId);
+                  const allocations = warehouseAllocations[itemId] || [];
+                  const totalAllocatedQty = getTotalAllocatedQuantity(itemId);
+                  const remainingQty = item.quantity - totalAllocatedQty;
+
+                  // Get unique warehouses for bullet list
+                  const warehouseList = Array.from(
+                    new Set(
+                      allocations
+                        .map((allocation) => allocation.warehouse_name)
+                        .filter(Boolean)
+                    )
+                  );
+
+                  return (
+                    <div
+                      key={itemId}
+                      className="border border-gray-200 rounded-lg"
+                    >
+                      {/* Parent Row (Accordion Header) */}
+                      <div
+                        className="bg-gray-50 p-4 cursor-pointer"
+                        onClick={() => toggleItemExpansion(itemId)}
+                      >
+                        <div className="grid grid-cols-12 gap-4 items-center text-sm">
+                          {/* Item (Double Width) */}
+                          <div className="col-span-2">
+                            <div className="font-bold text-gray-900">
+                              {item.itemName}
+                            </div>
+                            <div className="text-xs text-gray-600">
+                              {item.itemCode}
+                            </div>
+                          </div>
+                          {/* HSN Code */}
+                          <div className="col-span-1">
+                            <div className="font-medium text-gray-900">
+                              {item.hsnCode}
+                            </div>
+                          </div>
+                          {/* UOM */}
+                          <div className="col-span-1">
+                            <div className="font-medium text-gray-900">
+                              {item.uom}
+                            </div>
+                          </div>
+                          {/* Rate */}
+                          <div className="col-span-1">
+                            <input
+                              type="number"
+                              value={item.rate}
+                              onChange={(e) =>
+                                handleItemChange(
+                                  item.item_id,
+                                  "rate",
+                                  Number(e.target.value)
+                                )
+                              }
+                              className="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                            />
+                          </div>
+                          {/* Total Quantity */}
+                          <div className="col-span-1">
+                            <input
+                              type="number"
+                              value={item.quantity}
+                              onChange={(e) =>
+                                handleItemChange(
+                                  item.item_id,
+                                  "quantity",
+                                  Number(e.target.value)
+                                )
+                              }
+                              className="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                            />
+                          </div>
+                          {/* Allocated Quantity */}
+                          <div className="col-span-2">
+                            <div className="font-medium text-gray-900">
+                              <span className="text-green-600">
+                                {totalAllocatedQty}
+                              </span>
+                              <span className="text-gray-400 mx-1">/</span>
+                              <span>{item.quantity}</span>
+                              {remainingQty > 0 && (
+                                <span className="text-orange-600 text-xs ml-2">
+                                  ({remainingQty} remaining)
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          {/* Warehouses (bullet list) */}
+                          <div className="col-span-2">
+                            <ul className="text-xs text-gray-500 list-disc ml-4">
+                              {warehouseList.length > 0 ? (
+                                warehouseList.map((w, i) => (
+                                  <li key={i}>{w}</li>
+                                ))
+                              ) : (
+                                <li className="text-gray-400">
+                                  No allocations
+                                </li>
+                              )}
+                            </ul>
+                          </div>
+                          {/* Total Price */}
+                          <div className="col-span-1">
+                            <div className="font-medium text-gray-900">
+                              ₹{item.totalPrice.toLocaleString()}
+                            </div>
+                          </div>
+                          {/* Action: Add warehouse allocation */}
+                          <div className="col-span-1">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                addWarehouseAllocation(itemId);
+                                if (!isExpanded) toggleItemExpansion(itemId);
+                              }}
+                              className="text-green-600 hover:text-green-800 border border-green-200 rounded px-2 py-1"
+                              title="Add warehouse allocation"
+                            >
+                              +
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                      {/* Accordion Child Rows (Expanded) */}
+                      {isExpanded && (
+                        <div className="bg-white border-t border-gray-200 py-4 pl-[3.5rem]">
+                          {/* Child Header */}
+                          <div className="bg-gray-100 p-2">
+                            <div className="grid grid-cols-4 gap-4 text-xs font-medium text-gray-500 uppercase">
+                              <div className="col-span-2">Warehouse</div>
+                              <div className="col-span-1">Quantity</div>
+                              <div className="col-span-1">Actions</div>
+                            </div>
+                          </div>
+                          {/* Child Rows */}
+                          {allocations.length === 0 && (
+                            <div className="p-4 text-xs text-gray-400">
+                              No warehouse allocations yet. Click + to add.
+                            </div>
+                          )}
+                          {allocations.map((allocation) => (
+                            <div
+                              key={allocation.id}
+                              className="p-2 border-t border-gray-100"
+                            >
+                              <div className="grid grid-cols-4 gap-4 items-center text-sm">
+                                {/* Warehouse */}
+                                <div className="col-span-2">
+                                  <select
+                                    value={allocation.warehouse_id}
+                                    onChange={(e) =>
+                                      updateWarehouseAllocation(
+                                        itemId,
+                                        allocation.id,
+                                        "warehouse_id",
+                                        e.target.value
+                                      )
+                                    }
+                                    className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                  >
+                                    <option value="">Select Warehouse</option>
+                                    {warehouses.map((warehouse) => (
+                                      <option
+                                        key={warehouse.id}
+                                        value={warehouse.id}
+                                      >
+                                        {warehouse.name}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </div>
+                                {/* Quantity */}
+                                <div className="col-span-1">
+                                  <input
+                                    type="number"
+                                    value={allocation.qty}
+                                    onChange={(e) =>
+                                      updateWarehouseAllocation(
+                                        itemId,
+                                        allocation.id,
+                                        "qty",
+                                        parseInt(e.target.value) || 0
+                                      )
+                                    }
+                                    className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                    min="0"
+                                    max={item.quantity}
+                                  />
+                                </div>
+                                {/* Actions */}
+                                <div className="col-span-1">
+                                  <button
+                                    onClick={() =>
+                                      removeWarehouseAllocation(
+                                        itemId,
+                                        allocation.id
+                                      )
+                                    }
+                                    className="text-red-600 hover:text-red-800 border border-red-200 rounded px-1 py-1"
+                                    title="Remove warehouse allocation"
+                                  >
+                                    -
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
             ) : (
               <div className="text-center py-8 text-gray-500 border border-gray-200 rounded-lg bg-gray-50">
                 <p>No items available</p>
