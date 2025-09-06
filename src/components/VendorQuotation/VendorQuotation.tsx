@@ -8,6 +8,7 @@ import ApproveQuotationModal from "./ApproveQuotationModal";
 import ViewQuotationModal from "./ViewQuotationModal";
 import GenerateCSTab from "./GenerateCSTab";
 import ApproveCSTab from "./ApproveCSTab";
+import ViewRFQModal from "./ViewRFQModal"
 
 interface RFQ {
   id: string;
@@ -56,6 +57,8 @@ const VendorQuotation: React.FC = () => {
   const [quotations, setQuotations] = useState<VendorQuotation[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  const [showViewRFQ, setShowViewRFQ] = useState(false); // Add state for ViewRFQModal
 
   // Fetch RFQs on component mount and when activeTab changes
   React.useEffect(() => {
@@ -293,23 +296,32 @@ const VendorQuotation: React.FC = () => {
     }
   };
 
-  const handleViewRFQ = async (rfq: RFQ) => {
+   const handleViewRFQ = async (rfq: RFQ) => {
     try {
+      setLoading(true);
       const response = await axios.get(
         `${import.meta.env.VITE_API_BASE_URL}/rfq/${rfq.id}`
       );
       if (response.data?.data) {
         setSelectedRFQ({
           ...rfq,
+          rfqNo: response.data.data.rfq_number || "N/A",
+          rfqDate: response.data.data.rfq_date || "N/A",
+          endDate: response.data.data.rfq_end_date || "N/A",
+          approvedOn: response.data.data.approved_on || "N/A",
           deliveryLocation:
             response.data.data.warehouse_names?.join(", ") || "N/A",
           vendorOptions: response.data.data.vendor_names || [],
+          items: response.data.data.items || [],
+          indents: response.data.data.indents || [],
         });
-        // TODO: Create ViewRFQModal component
+        setShowViewRFQ(true); // Show the modal
       }
     } catch (err) {
       console.error("Error fetching RFQ details:", err);
       alert("Failed to fetch RFQ details");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -798,6 +810,18 @@ const VendorQuotation: React.FC = () => {
             setSelectedQuotationForView(null);
           }}
           quotation={selectedQuotationForView}
+        />
+      )}
+
+      {/* View RFQ Modal */}
+      {showViewRFQ && selectedRFQ && (
+        <ViewRFQModal
+          isOpen={showViewRFQ}
+          onClose={() => {
+            setShowViewRFQ(false);
+            setSelectedRFQ(null);
+          }}
+          rfqData={selectedRFQ}
         />
       )}
     </div>

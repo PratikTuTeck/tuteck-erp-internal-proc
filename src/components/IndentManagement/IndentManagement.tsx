@@ -53,8 +53,9 @@ const IndentManagement: React.FC = () => {
       );
       if (response.data.success) {
         // Transform API response to match UI interface
-        const transformedIndents = (response.data.data || []).map(
-          (apiIndent: any) => ({
+        const transformedIndents = (response.data.data || [])
+          .filter((apiIndent: any) => apiIndent.association_type === "Lead")
+          .map((apiIndent: any) => ({
             id: apiIndent.id,
             indentNumber: apiIndent.indent_number,
             createdBy: apiIndent.created_by || "System", // Default if not provided
@@ -79,8 +80,7 @@ const IndentManagement: React.FC = () => {
             noOfItems: 0, // This would need to come from indent details API
             comment: apiIndent.comment || "",
             items: [], // This would need to come from indent details API
-          })
-        );
+          }));
         setIndents(transformedIndents);
       } else {
         setError("Failed to fetch indents");
