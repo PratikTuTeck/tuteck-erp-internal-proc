@@ -709,7 +709,10 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
                 `${import.meta.env.VITE_API_BASE_URL}/cs-details/${
                   item.cs_id
                 }/po-status`,
-                { is_po_generated: true }
+                { is_po_generated: true,
+                  item_id: item.item_id,
+                  vendor_id: formData.selectedVendor
+                 }
               );
 
               if (!updateResponse.data.success) {
@@ -1008,142 +1011,141 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
   // Filter vendors based on RFQ selection (won vendors only)
   const availableVendors = vendors;
 
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl max-w-7xl w-full mx-4 max-h-[95vh] overflow-y-auto">
-        <div className="flex items-center justify-between p-6 border-b border-gray-200">
-          <h2 className="text-xl font-semibold text-gray-900">
-            Create Purchase Order
-          </h2>
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 transition-colors"
-          >
-            <X className="w-6 h-6" />
-          </button>
+ return (
+  <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+    <div className="bg-white rounded-lg shadow-xl max-w-7xl w-full mx-4 max-h-[95vh] overflow-hidden flex flex-col">
+      <div className="flex items-center justify-between p-6 border-b border-gray-200">
+        <h2 className="text-xl font-semibold text-gray-900">
+          Create Purchase Order
+        </h2>
+        <button
+          onClick={onClose}
+          className="text-gray-400 hover:text-gray-600 transition-colors"
+        >
+          <X className="w-6 h-6" />
+        </button>
+      </div>
+
+      <div className="flex-1 overflow-y-auto p-6 space-y-8">
+        {/* Source Selection */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-3">
+            Source Type
+          </label>
+          <div className="flex space-x-6">
+            <label className="flex items-center">
+              <input
+                type="radio"
+                value="quotation"
+                checked={sourceType === "quotation"}
+                onChange={(e) =>
+                  handleSourceTypeChange(e.target.value as "quotation")
+                }
+                className="mr-2"
+              />
+              <span>Quotation</span>
+            </label>
+            <label className="flex items-center">
+              <input
+                type="radio"
+                value="indent"
+                checked={sourceType === "indent"}
+                onChange={(e) =>
+                  handleSourceTypeChange(e.target.value as "indent")
+                }
+                className="mr-2"
+              />
+              <span>Indent Details</span>
+            </label>
+          </div>
         </div>
 
-        <div className="p-6 space-y-8">
-          {/* Source Selection */}
+        {/* Form Fields */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-3">
-              Source Type
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              PO Date <span className="text-red-500">*</span>
             </label>
-            <div className="flex space-x-6">
-              <label className="flex items-center">
-                <input
-                  type="radio"
-                  value="quotation"
-                  checked={sourceType === "quotation"}
-                  onChange={(e) =>
-                    handleSourceTypeChange(e.target.value as "quotation")
-                  }
-                  className="mr-2"
-                />
-                <span>Quotation</span>
-              </label>
-              <label className="flex items-center">
-                <input
-                  type="radio"
-                  value="indent"
-                  checked={sourceType === "indent"}
-                  onChange={(e) =>
-                    handleSourceTypeChange(e.target.value as "indent")
-                  }
-                  className="mr-2"
-                />
-                <span>Indent Details</span>
-              </label>
-            </div>
+            <input
+              type="date"
+              value={formData.poDate}
+              onChange={(e) =>
+                setFormData({ ...formData, poDate: e.target.value })
+              }
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
           </div>
 
-          {/* Form Fields */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {sourceType === "quotation" ? (
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                PO Date <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="date"
-                value={formData.poDate}
-                onChange={(e) =>
-                  setFormData({ ...formData, poDate: e.target.value })
-                }
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-
-            {sourceType === "quotation" ? (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Select RFQ <span className="text-red-500">*</span>
-                </label>
-                <select
-                  value={formData.selectedRFQ}
-                  onChange={(e) => handleRFQChange(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="">Select RFQ</option>
-                  {rfqs.map((rfq) => (
-                    <option key={rfq.id} value={rfq.id}>
-                      {rfq.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            ) : (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Select Indent <span className="text-red-500">*</span>
-                </label>
-                <select
-                  value={formData.selectedIndent}
-                  onChange={(e) => handleIndentChange(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="">Select Indent</option>
-                  {indents.map((indent) => (
-                    <option key={indent.id} value={indent.id}>
-                      {indent.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Select Vendor <span className="text-red-500">*</span>
+                Select RFQ <span className="text-red-500">*</span>
               </label>
               <select
-                value={formData.selectedVendor}
-                onChange={(e) => handleVendorChange(e.target.value)}
-                disabled={
-                  (sourceType === "quotation" && !formData.selectedRFQ) ||
-                  loading
-                }
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
+                value={formData.selectedRFQ}
+                onChange={(e) => handleRFQChange(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
-                <option value="">
-                  {loading ? "Loading..." : "Select Vendor"}
-                </option>
-                {availableVendors.map((vendor) => (
-                  <option key={vendor.id} value={vendor.id}>
-                    {vendor.name}
+                <option value="">Select RFQ</option>
+                {rfqs.map((rfq) => (
+                  <option key={rfq.id} value={rfq.id}>
+                    {rfq.name}
                   </option>
                 ))}
               </select>
-              {loading &&
-                sourceType === "quotation" &&
-                formData.selectedVendor && (
-                  <p className="text-sm text-blue-600 mt-1">
-                    Loading quotation details...
-                  </p>
-                )}
             </div>
+          ) : (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Select Indent <span className="text-red-500">*</span>
+              </label>
+              <select
+                value={formData.selectedIndent}
+                onChange={(e) => handleIndentChange(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">Select Indent</option>
+                {indents.map((indent) => (
+                  <option key={indent.id} value={indent.id}>
+                    {indent.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Select Vendor <span className="text-red-500">*</span>
+            </label>
+            <select
+              value={formData.selectedVendor}
+              onChange={(e) => handleVendorChange(e.target.value)}
+              disabled={
+                (sourceType === "quotation" && !formData.selectedRFQ) ||
+                loading
+              }
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
+            >
+              <option value="">
+                {loading ? "Loading..." : "Select Vendor"}
+              </option>
+              {availableVendors.map((vendor) => (
+                <option key={vendor.id} value={vendor.id}>
+                  {vendor.name}
+                </option>
+              ))}
+            </select>
+            {loading &&
+              sourceType === "quotation" &&
+              formData.selectedVendor && (
+                <p className="text-sm text-blue-600 mt-1">
+                  Loading quotation details...
+                </p>
+              )}
           </div>
 
-          <div className="md:col-span-3">
+          <div className="col-span-1 md:col-span-3">
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Vendor Address
             </label>
@@ -1254,156 +1256,9 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
           </div>
         </div>
 
-        {/* Payment Terms */}
-        {/* <div>
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-900">
-              Vendor Payment Terms
-              {paymentTerms.some((term) => term.isFromQuotation) && (
-                <span className="ml-2 text-sm text-blue-600 font-normal">
-                  (From Quotation)
-                </span>
-              )}
-            </h3>
-            {(!paymentTerms.some((term) => term.isFromQuotation) ||
-              sourceType !== "quotation") && (
-              <button
-                onClick={handleAddPaymentTerm}
-                className="flex items-center space-x-2 px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors text-sm"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Add Term</span>
-              </button>
-            )}
-          </div>
-
-          <div className="overflow-x-auto">
-            {paymentTerms.length > 0 ? (
-              <table className="w-full border border-gray-200 rounded-lg">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="text-left py-3 px-4 font-medium text-gray-900">
-                      Terms
-                    </th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-900">
-                      Amount
-                    </th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-900">
-                      Reason
-                    </th>
-                    <th className="text-center py-3 px-4 font-medium text-gray-900">
-                      Action
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {paymentTerms.map((term) => (
-                    <tr key={term.id} className="border-t border-gray-200">
-                      <td className="py-3 px-4">
-                        <input
-                          type="text"
-                          value={term.terms}
-                          onChange={(e) =>
-                            handlePaymentTermChange(
-                              term.id,
-                              "terms",
-                              e.target.value
-                            )
-                          }
-// <<<<<<< feature/mijanur/po
-                          className="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-// =======
-                          readOnly={term.isFromQuotation}
-                          className={`w-full px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 ${
-                            term.isFromQuotation
-                              ? "bg-gray-50 text-gray-600 cursor-not-allowed"
-                              : ""
-                          }`}
-// >>>>>>> main
-                        />
-                      </td>
-                      <td className="py-3 px-4">
-                        <input
-                          type="text"
-                          value={term.amount}
-                          onChange={(e) =>
-                            handlePaymentTermChange(
-                              term.id,
-                              "amount",
-                              e.target.value
-                            )
-                          }
-// <<<<<<< feature/mijanur/po
-                          className="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-// =======
-                          readOnly={term.isFromQuotation}
-                          className={`w-full px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 ${
-                            term.isFromQuotation
-                              ? "bg-gray-50 text-gray-600 cursor-not-allowed"
-                              : ""
-                          }`}
-// >>>>>>> main
-                        />
-                      </td>
-                      <td className="py-3 px-4">
-                        <input
-                          type="text"
-                          value={term.reason}
-                          onChange={(e) =>
-                            handlePaymentTermChange(
-                              term.id,
-                              "reason",
-                              e.target.value
-                            )
-                          }
-// <<<<<<< feature/mijanur/po
-                          className="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-// =======
-                          readOnly={term.isFromQuotation}
-                          className={`w-full px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 ${
-                            term.isFromQuotation
-                              ? "bg-gray-50 text-gray-600 cursor-not-allowed"
-                              : ""
-                          }`}
-// >>>>>>> main
-                        />
-                      </td>
-                      <td className="py-3 px-4 text-center">
-                        {!term.isFromQuotation ? (
-                          <button
-                            onClick={() => handleDeletePaymentTerm(term.id)}
-                            className="text-red-600 hover:text-red-800 transition-colors"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        ) : (
-                          <span className="text-gray-400 text-xs">N/A</span>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            ) : (
-              <div className="text-center py-8 text-gray-500 border border-gray-200 rounded-lg bg-gray-50">
-                <p>No payment terms available</p>
-                <p className="text-sm mt-1">
-                  {sourceType === "quotation"
-                    ? "Select a vendor to load payment terms from quotation"
-                    : "Click 'Add Term' to add payment terms"}
-                </p>
-              </div>
-            )}
-          </div>
-// <<<<<<< feature/mijanur/po
-        )}
-// =======
-        </div> */}
-        {/* // >>>>>>> main */}
-
         {/* Item Details */}
         <div>
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 gap-4">
             <h3 className="text-lg font-semibold text-gray-900">
               Item Details
             </h3>
@@ -1419,253 +1274,11 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
             </div>
           </div>
 
-          <div className="overflow-x-auto">
-            {sourceType === "indent" ? (
-              filteredItems.length > 0 ? (
-                <div className="space-y-2">
-                  {/* Accordion Parent Header Row */}
-                  <div className="grid grid-cols-12 gap-4 text-xs font-semibold text-gray-500 uppercase bg-gray-100 rounded-t-lg px-4 py-2">
-                    <div className="col-span-2">Item</div>
-                    <div className="col-span-1">HSN Code</div>
-                    <div className="col-span-1">UOM</div>
-                    <div className="col-span-1">Rate</div>
-                    <div className="col-span-1">Total Qty</div>
-                    <div className="col-span-2">Allocated Qty</div>
-                    <div className="col-span-2">Warehouses</div>
-                    <div className="col-span-1">Total Price</div>
-                    <div className="col-span-1">Actions</div>
-                  </div>
-                  {filteredItems.map((item) => {
-                    const itemId = item.item_id;
-                    const isExpanded = expandedItems.has(itemId);
-                    const allocations = warehouseAllocations[itemId] || [];
-                    const totalAllocatedQty = getTotalAllocatedQuantity(itemId);
-                    const remainingQty = item.quantity - totalAllocatedQty;
-
-                    // Get unique warehouses for bullet list
-                    const warehouseList = Array.from(
-                      new Set(
-                        allocations
-                          .map((allocation) => allocation.warehouse_name)
-                          .filter(Boolean)
-                      )
-                    );
-
-                    return (
-                      <div
-                        key={itemId}
-                        className="border border-gray-200 rounded-lg"
-                      >
-                        {/* Parent Row (Accordion Header) */}
-                        <div
-                          className="bg-gray-50 p-4 cursor-pointer"
-                          onClick={() => toggleItemExpansion(itemId)}
-                        >
-                          <div className="grid grid-cols-12 gap-4 items-center text-sm">
-                            {/* Item (Double Width) */}
-                            <div className="col-span-2">
-                              <div className="font-bold text-gray-900">
-                                {item.itemName}
-                              </div>
-                              <div className="text-xs text-gray-600">
-                                {item.itemCode}
-                              </div>
-                            </div>
-                            {/* HSN Code */}
-                            <div className="col-span-1">
-                              <div className="font-medium text-gray-900">
-                                {item.hsnCode}
-                              </div>
-                            </div>
-                            {/* UOM */}
-                            <div className="col-span-1">
-                              <div className="font-medium text-gray-900">
-                                {item.uom}
-                              </div>
-                            </div>
-                            {/* Rate */}
-                            <div className="col-span-1">
-                              <input
-                                type="number"
-                                value={item.rate}
-                                onChange={(e) =>
-                                  handleItemChange(
-                                    item.item_id,
-                                    "rate",
-                                    Number(e.target.value)
-                                  )
-                                }
-                                className="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-                              />
-                            </div>
-                            {/* Total Quantity */}
-                            <div className="col-span-1">
-                              <input
-                                type="number"
-                                value={item.quantity}
-                                onChange={(e) =>
-                                  handleItemChange(
-                                    item.item_id,
-                                    "quantity",
-                                    Number(e.target.value)
-                                  )
-                                }
-                                className="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-                              />
-                            </div>
-                            {/* Allocated Quantity */}
-                            <div className="col-span-2">
-                              <div className="font-medium text-gray-900">
-                                <span className="text-green-600">
-                                  {totalAllocatedQty}
-                                </span>
-                                <span className="text-gray-400 mx-1">/</span>
-                                <span>{item.quantity}</span>
-                                {remainingQty > 0 && (
-                                  <span className="text-orange-600 text-xs ml-2">
-                                    ({remainingQty} remaining)
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                            {/* Warehouses (bullet list) */}
-                            <div className="col-span-2">
-                              <ul className="text-xs text-gray-500 list-disc ml-4">
-                                {warehouseList.length > 0 ? (
-                                  warehouseList.map((w, i) => (
-                                    <li key={i}>{w}</li>
-                                  ))
-                                ) : (
-                                  <li className="text-gray-400">
-                                    No allocations
-                                  </li>
-                                )}
-                              </ul>
-                            </div>
-                            {/* Total Price */}
-                            <div className="col-span-1">
-                              <div className="font-medium text-gray-900">
-                                ₹{item.totalPrice.toLocaleString()}
-                              </div>
-                            </div>
-                            {/* Action: Add warehouse allocation */}
-                            <div className="col-span-1">
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  addWarehouseAllocation(itemId);
-                                  if (!isExpanded) toggleItemExpansion(itemId);
-                                }}
-                                className="text-green-600 hover:text-green-800 border border-green-200 rounded px-2 py-1"
-                                title="Add warehouse allocation"
-                              >
-                                +
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                        {/* Accordion Child Rows (Expanded) */}
-                        {isExpanded && (
-                          <div className="bg-white border-t border-gray-200 py-4 pl-[3.5rem]">
-                            {/* Child Header */}
-                            <div className="bg-gray-100 p-2">
-                              <div className="grid grid-cols-4 gap-4 text-xs font-medium text-gray-500 uppercase">
-                                <div className="col-span-2">Warehouse</div>
-                                <div className="col-span-1">Quantity</div>
-                                <div className="col-span-1">Actions</div>
-                              </div>
-                            </div>
-                            {/* Child Rows */}
-                            {allocations.length === 0 && (
-                              <div className="p-4 text-xs text-gray-400">
-                                No warehouse allocations yet. Click + to add.
-                              </div>
-                            )}
-                            {allocations.map((allocation) => (
-                              <div
-                                key={allocation.id}
-                                className="p-2 border-t border-gray-100"
-                              >
-                                <div className="grid grid-cols-4 gap-4 items-center text-sm">
-                                  {/* Warehouse */}
-                                  <div className="col-span-2">
-                                    <select
-                                      value={allocation.warehouse_id}
-                                      onChange={(e) =>
-                                        updateWarehouseAllocation(
-                                          itemId,
-                                          allocation.id,
-                                          "warehouse_id",
-                                          e.target.value
-                                        )
-                                      }
-                                      className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                    >
-                                      <option value="">Select Warehouse</option>
-                                      {warehouses.map((warehouse) => (
-                                        <option
-                                          key={warehouse.id}
-                                          value={warehouse.id}
-                                        >
-                                          {warehouse.name}
-                                        </option>
-                                      ))}
-                                    </select>
-                                  </div>
-                                  {/* Quantity */}
-                                  <div className="col-span-1">
-                                    <input
-                                      type="number"
-                                      value={allocation.qty}
-                                      onChange={(e) =>
-                                        updateWarehouseAllocation(
-                                          itemId,
-                                          allocation.id,
-                                          "qty",
-                                          parseInt(e.target.value) || 0
-                                        )
-                                      }
-                                      className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                      min="0"
-                                      max={item.quantity}
-                                    />
-                                  </div>
-                                  {/* Actions */}
-                                  <div className="col-span-1">
-                                    <button
-                                      onClick={() =>
-                                        removeWarehouseAllocation(
-                                          itemId,
-                                          allocation.id
-                                        )
-                                      }
-                                      className="text-red-600 hover:text-red-800 border border-red-200 rounded px-1 py-1"
-                                      title="Remove warehouse allocation"
-                                    >
-                                      -
-                                    </button>
-                                  </div>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className="text-center py-8 text-gray-500 border border-gray-200 rounded-lg bg-gray-50">
-                  <p>No items available</p>
-                  <p className="text-sm mt-1">
-                    Items will be loaded based on indent selection
-                  </p>
-                </div>
-              )
-            ) : filteredItems.length > 0 ? (
+          <div className="overflow-hidden">
+            {filteredItems.length > 0 ? (
               <div className="space-y-2">
-                {/* Accordion Parent Header Row */}
-                <div className="grid grid-cols-12 gap-4 text-xs font-semibold text-gray-500 uppercase bg-gray-100 rounded-t-lg px-4 py-2">
+                {/* Accordion Parent Header Row - Hidden on mobile */}
+                <div className="hidden lg:grid grid-cols-12 gap-4 text-xs font-semibold text-gray-500 uppercase bg-gray-100 rounded-t-lg px-4 py-2">
                   <div className="col-span-2">Item</div>
                   <div className="col-span-1">HSN Code</div>
                   <div className="col-span-1">UOM</div>
@@ -1697,12 +1310,13 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
                       key={itemId}
                       className="border border-gray-200 rounded-lg"
                     >
-                      {/* Parent Row (Accordion Header) */}
-                      <div
-                        className="bg-gray-50 p-4 cursor-pointer"
-                        onClick={() => toggleItemExpansion(itemId)}
-                      >
-                        <div className="grid grid-cols-12 gap-4 items-center text-sm">
+                      {/* Parent Row (Accordion Header) - Mobile Responsive */}
+                      <div className="bg-gray-50 p-4 cursor-pointer">
+                        {/* Desktop View */}
+                        <div 
+                          className="hidden lg:grid grid-cols-12 gap-4 items-center text-sm"
+                          onClick={() => toggleItemExpansion(itemId)}
+                        >
                           {/* Item (Double Width) */}
                           <div className="col-span-2">
                             <div className="font-bold text-gray-900">
@@ -1736,6 +1350,7 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
                                   Number(e.target.value)
                                 )
                               }
+                              onClick={(e) => e.stopPropagation()}
                               className="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
                             />
                           </div>
@@ -1751,6 +1366,7 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
                                   Number(e.target.value)
                                 )
                               }
+                              onClick={(e) => e.stopPropagation()}
                               className="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
                             />
                           </div>
@@ -1797,29 +1413,115 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
                                 addWarehouseAllocation(itemId);
                                 if (!isExpanded) toggleItemExpansion(itemId);
                               }}
-                              className="text-green-600 hover:text-green-800 border border-green-200 rounded px-2 py-1"
+                              className="text-green-600 hover:text-green-800 border border-green-200 rounded px-2 py-1 text-sm font-medium"
                               title="Add warehouse allocation"
                             >
                               +
                             </button>
                           </div>
                         </div>
+
+                        {/* Mobile View */}
+                        <div className="lg:hidden space-y-3">
+                          <div 
+                            className="flex justify-between items-start cursor-pointer"
+                            onClick={() => toggleItemExpansion(itemId)}
+                          >
+                            <div>
+                              <div className="font-bold text-gray-900">
+                                {item.itemName}
+                              </div>
+                              <div className="text-xs text-gray-600">
+                                {item.itemCode}
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <div className="font-medium text-gray-900">
+                                ₹{item.totalPrice.toLocaleString()}
+                              </div>
+                              <div className="text-xs text-gray-500">
+                                HSN: {item.hsnCode}
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-3 text-sm">
+                            <div>
+                              <label className="block text-xs text-gray-500 mb-1">Rate</label>
+                              <input
+                                type="number"
+                                value={item.rate}
+                                onChange={(e) =>
+                                  handleItemChange(
+                                    item.item_id,
+                                    "rate",
+                                    Number(e.target.value)
+                                  )
+                                }
+                                className="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs text-gray-500 mb-1">Quantity</label>
+                              <input
+                                type="number"
+                                value={item.quantity}
+                                onChange={(e) =>
+                                  handleItemChange(
+                                    item.item_id,
+                                    "quantity",
+                                    Number(e.target.value)
+                                  )
+                                }
+                                className="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                              />
+                            </div>
+                          </div>
+
+                          <div className="flex justify-between items-center">
+                            <div className="text-sm">
+                              <span className="text-gray-500">Allocated: </span>
+                              <span className="text-green-600 font-medium">
+                                {totalAllocatedQty}
+                              </span>
+                              <span className="text-gray-400 mx-1">/</span>
+                              <span>{item.quantity}</span>
+                              {remainingQty > 0 && (
+                                <span className="text-orange-600 text-xs ml-2">
+                                  ({remainingQty} remaining)
+                                </span>
+                              )}
+                            </div>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                addWarehouseAllocation(itemId);
+                                if (!isExpanded) toggleItemExpansion(itemId);
+                              }}
+                              className="text-green-600 hover:text-green-800 border border-green-200 rounded px-3 py-1 text-sm font-medium"
+                              title="Add warehouse allocation"
+                            >
+                              + Add Warehouse
+                            </button>
+                          </div>
+                        </div>
                       </div>
+
                       {/* Accordion Child Rows (Expanded) */}
                       {isExpanded && (
-                        <div className="bg-white border-t border-gray-200 py-4 pl-[3.5rem]">
+                        <div className="bg-white border-t border-gray-200 py-4 lg:pl-[3.5rem] px-4">
                           {/* Child Header */}
-                          <div className="bg-gray-100 p-2">
-                            <div className="grid grid-cols-4 gap-4 text-xs font-medium text-gray-500 uppercase">
-                              <div className="col-span-2">Warehouse</div>
-                              <div className="col-span-1">Quantity</div>
-                              <div className="col-span-1">Actions</div>
+                          <div className="bg-gray-100 p-2 rounded mb-2">
+                            <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 text-xs font-medium text-gray-500 uppercase">
+                              <div className="lg:col-span-2">Warehouse</div>
+                              <div className="lg:col-span-1">Quantity</div>
+                              <div className="lg:col-span-1">Actions</div>
                             </div>
                           </div>
                           {/* Child Rows */}
                           {allocations.length === 0 && (
-                            <div className="p-4 text-xs text-gray-400">
-                              No warehouse allocations yet. Click + to add.
+                            <div className="p-4 text-sm text-gray-400 text-center">
+                              No warehouse allocations yet. Click "Add Warehouse" to add.
                             </div>
                           )}
                           {allocations.map((allocation) => (
@@ -1827,9 +1529,12 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
                               key={allocation.id}
                               className="p-2 border-t border-gray-100"
                             >
-                              <div className="grid grid-cols-4 gap-4 items-center text-sm">
+                              <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 items-center text-sm">
                                 {/* Warehouse */}
-                                <div className="col-span-2">
+                                <div className="lg:col-span-2">
+                                  <label className="block text-xs text-gray-500 mb-1 lg:hidden">
+                                    Warehouse
+                                  </label>
                                   <select
                                     value={allocation.warehouse_id}
                                     onChange={(e) =>
@@ -1854,7 +1559,10 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
                                   </select>
                                 </div>
                                 {/* Quantity */}
-                                <div className="col-span-1">
+                                <div className="lg:col-span-1">
+                                  <label className="block text-xs text-gray-500 mb-1 lg:hidden">
+                                    Quantity
+                                  </label>
                                   <input
                                     type="number"
                                     value={allocation.qty}
@@ -1872,7 +1580,7 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
                                   />
                                 </div>
                                 {/* Actions */}
-                                <div className="col-span-1">
+                                <div className="lg:col-span-1">
                                   <button
                                     onClick={() =>
                                       removeWarehouseAllocation(
@@ -1880,10 +1588,10 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
                                         allocation.id
                                       )
                                     }
-                                    className="text-red-600 hover:text-red-800 border border-red-200 rounded px-1 py-1"
+                                    className="w-full lg:w-auto text-red-600 hover:text-red-800 border border-red-200 rounded px-3 py-1 text-sm font-medium"
                                     title="Remove warehouse allocation"
                                   >
-                                    -
+                                    Remove
                                   </button>
                                 </div>
                               </div>
@@ -1899,7 +1607,9 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
               <div className="text-center py-8 text-gray-500 border border-gray-200 rounded-lg bg-gray-50">
                 <p>No items available</p>
                 <p className="text-sm mt-1">
-                  Select a vendor to load items from quotation
+                  {sourceType === "quotation"
+                    ? "Select a vendor to load items from quotation"
+                    : "Items will be loaded based on indent selection"}
                 </p>
               </div>
             )}
@@ -1919,7 +1629,8 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
         </div>
       </div>
 
-      <div className="flex items-center justify-end space-x-3 p-6 border-t border-gray-200">
+      {/* Fixed Footer */}
+      <div className="flex items-center justify-end space-x-3 p-6 border-t border-gray-200 bg-white">
         <button
           onClick={onClose}
           className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
@@ -1929,13 +1640,14 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
         <button
           onClick={handleSave}
           disabled={loading}
-          className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+          className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {loading ? "Saving..." : "SAVE"}
         </button>
       </div>
     </div>
-  );
-};
+  </div>
+);
+}
 
 export default CreatePOModal;
