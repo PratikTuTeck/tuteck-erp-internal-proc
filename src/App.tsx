@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect} from 'react';
 import Sidebar from './components/Layout/Sidebar';
 import Header from './components/Layout/Header';
 import Dashboard from './components/Dashboard/Dashboard';
@@ -9,8 +9,20 @@ import Reports from './components/Reports/Reports';
 
 function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
+  useEffect(() => {
+      const params = new URLSearchParams(window.location.search);
+      const rawToken = params.get('token');
 
-  const renderContent = () => {
+      if (rawToken) {
+        const decodedToken = decodeURIComponent(rawToken);
+        localStorage.setItem('auth_token', decodedToken);
+
+        // clean the URL (remove ?token=... from history)
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
+    }, []);
+
+    const renderContent = () => {
     switch (activeTab) {
       case 'dashboard':
         return <Dashboard />;
