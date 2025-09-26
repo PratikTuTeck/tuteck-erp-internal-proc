@@ -9,6 +9,7 @@ import ViewQuotationModal from "./ViewQuotationModal";
 import GenerateCSTab from "./GenerateCSTab";
 import ApproveCSTab from "./ApproveCSTab";
 import ViewRFQModal from "./ViewRFQModal"
+import { useAuth } from "../../hooks/useAuth";
 
 interface RFQ {
   id: string;
@@ -57,6 +58,7 @@ const VendorQuotation: React.FC = () => {
   const [quotations, setQuotations] = useState<VendorQuotation[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+ const { hasAccess } = useAuth();
 
   const [showViewRFQ, setShowViewRFQ] = useState(false); // Add state for ViewRFQModal
 
@@ -726,7 +728,7 @@ const VendorQuotation: React.FC = () => {
               { id: "quotation", label: "Vendor Quotation" },
               { id: "generate-cs", label: "Generate CS" },
               { id: "approve-cs", label: "Approve CS" },
-            ].map((tab) => (
+            ].filter((item) => hasAccess("Vendor Quotation Management", item.label)).map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
