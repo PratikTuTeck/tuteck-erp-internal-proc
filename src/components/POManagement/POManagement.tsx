@@ -16,6 +16,8 @@ import ViewPOModal from "./ViewPOModal";
 import EditPOModal from "./EditPOModal";
 import ApprovePOModal from "./ApprovePOModal";
 import AmendPOModal from "./AmendPOModal";
+import { useAuth } from "../../hooks/useAuth";
+
 
 interface PO {
   id: string;
@@ -120,6 +122,7 @@ const POManagement: React.FC = () => {
   const [purchaseOrders, setPurchaseOrders] = useState<PO[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const { hasAccess } = useAuth();
 
   // Fetch POs on component mount
   React.useEffect(() => {
@@ -409,7 +412,7 @@ const POManagement: React.FC = () => {
         <div className="border-b border-gray-200">
           <div className="flex space-x-8 px-6">
             {[
-              { id: "all", label: "All POs", count: purchaseOrders.length },
+              { id: "all", label: "All po", count: purchaseOrders.length },
               {
                 id: "pending",
                 label: "Pending",
@@ -436,12 +439,12 @@ const POManagement: React.FC = () => {
               },
               {
                 id: "grn_complete",
-                label: "GRN Complete",
+                label: "GRN complete",
                 count: purchaseOrders.filter(
                   (po) => po.status === "GRN_COMPLETE"
                 ).length,
               },
-            ].map((tab) => (
+            ].filter((item) => hasAccess("PO Management", item.label)).map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}

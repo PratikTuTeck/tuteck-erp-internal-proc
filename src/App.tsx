@@ -1,41 +1,56 @@
-import React, { useState, useEffect} from 'react';
-import Sidebar from './components/Layout/Sidebar';
-import Header from './components/Layout/Header';
-import Dashboard from './components/Dashboard/Dashboard';
-import IndentManagement from './components/IndentManagement/IndentManagement';
-import VendorQuotation from './components/VendorQuotation/VendorQuotation';
-import POManagement from './components/POManagement/POManagement';
-import Reports from './components/Reports/Reports';
+import React, { useState } from "react";
+import { AuthProvider } from "./contexts/AuthContext";
+import { useAuth } from "./hooks/useAuth";
+import Sidebar from "./components/Layout/Sidebar";
+import Header from "./components/Layout/Header";
+import LoadingSpinner from "./components/Layout/LoadingSpinner";
+import UnauthorizedAccess from "./components/Layout/UnauthorizedAccess";
+import Dashboard from "./components/Dashboard/Dashboard";
+import IndentManagement from "./components/IndentManagement/IndentManagement";
+import VendorQuotation from "./components/VendorQuotation/VendorQuotation";
+import POManagement from "./components/POManagement/POManagement";
+import Reports from "./components/Reports/Reports";
 
-function App() {
-  const [activeTab, setActiveTab] = useState('dashboard');
-  useEffect(() => {
-      const params = new URLSearchParams(window.location.search);
-      const rawToken = params.get('token');
+const AppContent: React.FC = () => {
+  const [activeTab, setActiveTab] = useState("dashboard");
+  const { isLoading, isAuthenticated, hasAccess } = useAuth();
 
-      if (rawToken) {
-        const decodedToken = decodeURIComponent(rawToken);
-        localStorage.setItem('auth_token', decodedToken);
+  // Show loading spinner while validating token
+  if (isLoading) {
+    return <LoadingSpinner />;
+  }
 
-        // clean the URL (remove ?token=... from history)
-        window.history.replaceState({}, document.title, window.location.pathname);
-      }
-    }, []);
+  // Show unauthorized access if not authenticated or no PROC module access
+  if (!isAuthenticated || !hasAccess("PROC")) {
+    return <UnauthorizedAccess />;
+  }
 
-    const renderContent = () => {
+  const renderContent = () => {
     switch (activeTab) {
-      case 'dashboard':
-        return <Dashboard />;
-      case 'indent':
-        return <IndentManagement />;
-      case 'quotation':
-        return <VendorQuotation />;
-      case 'po':
-        return <POManagement />;
-      case 'reports':
-        return <Reports />;
+      case "dashboard":
+        return hasAccess("Dashboard") ? <Dashboard /> : <UnauthorizedAccess />;
+      case "indent":
+        return hasAccess("Indent Management") ? (
+          <IndentManagement />
+        ) : (
+          <UnauthorizedAccess />
+        );
+      case "quotation":
+        return hasAccess("Vendor Quotation Management") ? (
+          <VendorQuotation />
+        ) : (
+          <UnauthorizedAccess />
+        );
+      case "po":
+        return hasAccess("PO Management") ? (
+          <POManagement />
+        ) : (
+          <UnauthorizedAccess />
+        );
+      case "reports":
+        return hasAccess("Reports") ? <Reports /> : <UnauthorizedAccess />;
       default:
-        return <Dashboard />;
+        return hasAccess("Dashboard") ? <Dashboard /> : <UnauthorizedAccess />;
     }
   };
 
@@ -44,11 +59,17 @@ function App() {
       <Sidebar activeTab={activeTab} onTabChange={setActiveTab} />
       <div className="flex-1 flex flex-col overflow-hidden">
         <Header />
-        <main className="flex-1 overflow-y-auto">
-          {renderContent()}
-        </main>
+        <main className="flex-1 overflow-y-auto">{renderContent()}</main>
       </div>
     </div>
+  );
+};
+
+function App() {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
   );
 }
 
