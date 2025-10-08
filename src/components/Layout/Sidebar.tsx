@@ -51,16 +51,16 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange }) => {
     if (item.accessName === null) {
       return true;
     }
-    console.log(
-      "Checking access for menu:",
-      item.accessName,
-      hasAccess(item.accessName)
-    );
+    // console.log(
+    //   "Checking access for menu:",
+    //   item.accessName,
+    //   hasAccess(item.accessName)
+    // );
     // Check if user has access to this specific menu
     return hasAccess(item.accessName);
   });
 
-  console.log("Accessible Menu Items:", accessibleMenuItems);
+  // console.log("Accessible Menu Items:", accessibleMenuItems);
   return (
     <div className="w-64 bg-white border-r border-gray-200 min-h-screen">
       <div className="p-6 border-b border-gray-200">
@@ -79,16 +79,15 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange }) => {
         <ul className="space-y-2">
           {accessibleMenuItems.map((item) => {
             const Icon = item.icon;
-            console.log("Rendering menu item:", item);
+            // console.log("Rendering menu item:", item);
             return (
               <li key={item.id}>
                 <button
                   onClick={() => onTabChange(item.id)}
-                  className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-left transition-colors ${
-                    activeTab === item.id
-                      ? "bg-blue-50 text-blue-700 border-r-2 border-blue-600"
-                      : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
-                  }`}
+                  className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-left transition-colors ${activeTab === item.id
+                    ? "bg-blue-50 text-blue-700 border-r-2 border-blue-600"
+                    : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+                    }`}
                 >
                   <Icon className="w-5 h-5" />
                   <span className="font-medium">{item.label}</span>

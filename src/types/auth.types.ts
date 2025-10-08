@@ -1,12 +1,13 @@
 export interface UserAccess {
   access_id: string;
   name: string;
-  level_type: "MODULE" | "MENU" | "SUBMENU";
+  level_type: "MODULE" | "MENU" | "SUBMENU" | "ACTION";
   access_type: "READ" | "WRITE" | "DELETE";
   assigned_at: string;
   description: string | null;
   parent_name: string | null;
   grandparent_name: string | null;
+  grand_grandparent_name: string | null;
 }
 
 export interface DecodedToken {
@@ -37,6 +38,6 @@ export interface AuthContextType {
   isLoading: boolean;
   isAuthenticated: boolean;
   procAccesses: UserAccess[];
-  hasAccess: (menuName: string, submenuName?: string) => boolean;
+  hasAccess: (menuName: string, submenuName?: string, actionName?: string) => boolean;
   validateToken: () => Promise<void>;
 }

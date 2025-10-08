@@ -44,9 +44,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           ) {
             return true;
           }
+          if (
+            access.level_type === "ACTION" &&
+            access.grand_grandparent_name === "PROC"
+          ) {
+            return true;
+          }
           return false;
         });
-        console.log("Filtered PROC Accesses:", procOnlyAccesses);
+        // console.log("Filtered PROC Accesses:", procOnlyAccesses);
         setProcAccesses(procOnlyAccesses);
       }
     } catch (error) {
@@ -60,7 +66,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
-  const hasAccess = (menuName: string, submenuName?: string): boolean => {
+  const hasAccess = (menuName: string, submenuName?: string, actionName?: string): boolean => {
+    // console.log("Checking access for menu:", menuName);
+    // console.log("Checking submenu access for:", submenuName);
+    // console.log("Checking Action access for:", actionName);
     if (!user || procAccesses.length === 0) {
       return false;
     }
@@ -82,7 +91,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
 
     // If checking for submenu access
-    if (submenuName) {
+    if (submenuName && !actionName) {
       return procAccesses.some(
         (access) =>
           access.level_type === "SUBMENU" &&
@@ -91,7 +100,19 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           access.grandparent_name === "PROC"
       );
     }
-    console.log("Checking submenu access for:", submenuName);
+
+    // If checking for Action access
+    if (actionName) {
+      return procAccesses.some(
+        (access) =>
+          access.level_type === "ACTION" &&
+          access.name === actionName &&
+          access.parent_name === submenuName &&
+          access.grandparent_name === menuName &&
+          access.grand_grandparent_name === "PROC"
+      );
+    }
+
 
     // If checking for menu access
     return procAccesses.some(

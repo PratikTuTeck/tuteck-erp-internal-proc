@@ -398,13 +398,15 @@ const POManagement: React.FC = () => {
             <Filter className="w-4 h-4" />
             <span>Filter</span>
           </button>
-          <button
-            onClick={() => setShowCreatePO(true)}
-            className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Create PO</span>
-          </button>
+          {hasAccess("PO Management", "All po", "Create") && (
+            <button
+              onClick={() => setShowCreatePO(true)}
+              className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Create PO</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -448,11 +450,10 @@ const POManagement: React.FC = () => {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`py-4 px-1 border-b-2 font-medium text-sm ${
-                  activeTab === tab.id
-                    ? "border-blue-500 text-blue-600"
-                    : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-                }`}
+                className={`py-4 px-1 border-b-2 font-medium text-sm ${activeTab === tab.id
+                  ? "border-blue-500 text-blue-600"
+                  : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                  }`}
               >
                 {tab.label} ({tab.count})
               </button>
@@ -560,14 +561,16 @@ const POManagement: React.FC = () => {
                     </td>
                     <td className="py-4 px-4">
                       <div className="flex items-center justify-center space-x-2">
-                        <button
-                          onClick={() => handleViewPO(po)}
-                          className="p-1 text-blue-600 hover:text-blue-800 transition-colors"
-                          title="View"
-                        >
-                          <Eye className="w-4 h-4" />
-                        </button>
-                        {po.status === "PENDING" && (
+                        {hasAccess("PO Management", "All po", "View") && (
+                          <button
+                            onClick={() => handleViewPO(po)}
+                            className="p-1 text-blue-600 hover:text-blue-800 transition-colors"
+                            title="View"
+                          >
+                            <Eye className="w-4 h-4" />
+                          </button>
+                        )}
+                        {po.status === "PENDING" && hasAccess("PO Management", "All po", "Edit") && (
                           <button
                             onClick={() => handleEditPO(po)}
                             className="p-1 text-gray-600 hover:text-gray-800 transition-colors"
@@ -576,8 +579,9 @@ const POManagement: React.FC = () => {
                             <Edit className="w-4 h-4" />
                           </button>
                         )}
-                        {po.status === "PENDING" && (
-                          <>
+
+                        <>
+                          {po.status === "PENDING" && hasAccess("PO Management", "All po", "Approve") && (
                             <button
                               onClick={() => handleApprovePO(po)}
                               className="p-1 text-green-600 hover:text-green-800 transition-colors"
@@ -585,6 +589,8 @@ const POManagement: React.FC = () => {
                             >
                               <CheckCircle className="w-4 h-4" />
                             </button>
+                          )}
+                          {po.status === "PENDING" && hasAccess("PO Management", "All po", "Reject") && (
                             <button
                               onClick={() => handleApprovePO(po)}
                               className="p-1 text-red-600 hover:text-red-800 transition-colors"
@@ -592,9 +598,9 @@ const POManagement: React.FC = () => {
                             >
                               <XCircle className="w-4 h-4" />
                             </button>
-                          </>
-                        )}
-                        {po.status === "APPROVED" && (
+                          )}
+                        </>
+                        {po.status === "APPROVED" && hasAccess("PO Management", "All po", "Amend") && (
                           <button
                             onClick={() => handleAmendPO(po)}
                             className="p-1 text-purple-600 hover:text-purple-800 transition-colors"
@@ -605,14 +611,14 @@ const POManagement: React.FC = () => {
                         )}
                         {(po.status === "APPROVED" ||
                           po.status === "AMENDED") && (
-                          <button
-                            onClick={() => handleGeneratePDF(po)}
-                            className="p-1 text-orange-600 hover:text-orange-800 transition-colors"
-                            title="Generate PDF"
-                          >
-                            <Download className="w-4 h-4" />
-                          </button>
-                        )}
+                            <button
+                              onClick={() => handleGeneratePDF(po)}
+                              className="p-1 text-orange-600 hover:text-orange-800 transition-colors"
+                              title="Generate PDF"
+                            >
+                              <Download className="w-4 h-4" />
+                            </button>
+                          )}
                       </div>
                     </td>
                   </tr>
