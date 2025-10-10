@@ -1,6 +1,7 @@
 import React from "react";
 import { Search, Bell, User, Home, LogOut } from "lucide-react";
 import { useAuth } from "../../hooks/useAuth";
+import { NotificationButton } from "./NotificationButton";
 
 const Header: React.FC = () => {
   const { user } = useAuth();
@@ -28,11 +29,12 @@ const Header: React.FC = () => {
             <Home className="h-6 w-6" />
           </button>
 
-          <button className="relative p-2 text-gray-400 hover:text-gray-600 transition-colors">
+          {/* <button className="relative p-2 text-gray-400 hover:text-gray-600 transition-colors">
             <Bell className="w-5 h-5" />
             <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full"></span>
-          </button>
-
+          </button> */}
+          <NotificationButton/>
+          
           <div className="flex items-center space-x-3 border-l pl-4">
             <div className="text-right">
               <p className="text-sm font-medium text-gray-900">
