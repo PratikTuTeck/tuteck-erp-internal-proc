@@ -20,8 +20,33 @@ const AppContent: React.FC = () => {
     return <LoadingSpinner />;
   }
 
-  // Show unauthorized access if not authenticated or no PROC module access
-  if (!isAuthenticated || !hasAccess("PROC")) {
+  // Show error screen if not authenticated
+  if (!isAuthenticated) {
+    return (
+      <div className="flex items-center justify-center h-screen bg-gray-50">
+        <div className="text-center">
+          <div className="text-red-600 text-6xl mb-4">⚠️</div>
+          <h2 className="text-2xl font-bold text-gray-800 mb-2">
+            Authentication Required
+          </h2>
+          <p className="text-gray-600 mb-4">
+            You need to sign in to access this application.
+          </p>
+          <button
+            onClick={() =>
+              (window.location.href = `${import.meta.env.VITE_AUTH_UI_BASE_URL}/signin`)
+            }
+            className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+          >
+            Sign In
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Show unauthorized access if no PROC module access
+  if (!hasAccess("PROC")) {
     return <UnauthorizedAccess />;
   }
 
