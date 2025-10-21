@@ -12,12 +12,17 @@ interface Notification {
 }
 
 interface SendNotificationData {
-  receiver_ids: string[];
+  receiver_ids?: string[];
   title: string;
   message: string;
   link?: string | null;
   service_type?: string | null;
   sender_id?: string | null;
+  access?: {
+    module: string;
+    menu: string;
+    submenu?: string;
+  };
 }
 
 interface UseNotificationsReturn {

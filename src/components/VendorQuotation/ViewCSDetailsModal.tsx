@@ -2,6 +2,9 @@ import React, { useState } from "react";
 import { X, FileText, User, Phone, CheckCircle, XCircle } from "lucide-react";
 import axios from "axios";
 
+import useNotifications from '../../hooks/useNotifications';
+import { useAuth } from '../../hooks/useAuth';
+
 interface ViewCSDetailsModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -35,6 +38,12 @@ const ViewCSDetailsModal: React.FC<ViewCSDetailsModalProps> = ({
   vendor,
   mode = "view", // Default to view mode
 }) => {
+  //----------------------------------------------------------------------------------- For Notification
+  const token = localStorage.getItem('auth_token') || '';
+  const { user } = useAuth();
+  const { sendNotification } = useNotifications(user?.role, token);
+  //------------------------------------------------------------------------------------
+
   const [comment, setComment] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -60,6 +69,26 @@ const ViewCSDetailsModal: React.FC<ViewCSDetailsModalProps> = ({
       );
 
       if (response.data.success) {
+        // ------------------------------------------------------------------------------------------For notifications
+        try {
+          await sendNotification({
+            receiver_ids: ['admin'],
+            title: `CS Details Approved: ${vendor.rfqNo || 'CS'}`,
+            message: `CS Details for RFQ ${vendor.rfqNo || 'RFQ'} and Vendor ${vendor.vendorName || 'Unknown Vendor'} has been approved by ${user?.name || 'a user'}`,
+            service_type: 'PROC',
+            link: '',
+            sender_id: user?.role || 'user',
+            access: {
+              module: "PROC",
+              menu: "Vendor Quotation Management",
+            }
+          });
+          console.log(`Notification sent for CS Details Approved: ${vendor.rfqNo || 'CS'}`);
+        } catch (notifError) {
+          console.error('Failed to send notification:', notifError);
+          // Continue with the flow even if notification fails
+        }
+        // ------------------------------------------------------------------------------------------
         alert("CS Item Details approved successfully!");
         onRefresh?.(); // Call refresh callback if provided
         onClose();
@@ -99,6 +128,26 @@ const ViewCSDetailsModal: React.FC<ViewCSDetailsModalProps> = ({
       );
 
       if (response.data.success) {
+        // ------------------------------------------------------------------------------------------For notifications
+        try {
+          await sendNotification({
+            receiver_ids: ['admin'],
+            title: `CS Details Rejected: ${vendor.rfqNo || 'CS'}`,
+            message: `CS Details for RFQ ${vendor.rfqNo || 'RFQ'} and Vendor ${vendor.vendorName || 'Unknown Vendor'} has been rejected by ${user?.name || 'a user'}`,
+            service_type: 'PROC',
+            link: '',
+            sender_id: user?.role || 'user',
+            access: {
+              module: "PROC",
+              menu: "Vendor Quotation Management",
+            }
+          });
+          console.log(`Notification sent for CS Details Rejected: ${vendor.rfqNo || 'CS'}`);
+        } catch (notifError) {
+          console.error('Failed to send notification:', notifError);
+          // Continue with the flow even if notification fails
+        }
+        // ------------------------------------------------------------------------------------------
         alert("CS Item Details rejected successfully!");
         onRefresh?.(); // Call refresh callback if provided
         onClose();

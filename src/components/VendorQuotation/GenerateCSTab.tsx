@@ -3,6 +3,9 @@ import { Users } from "lucide-react";
 import axios from "axios";
 import SelectVendorsForCSModal from "./SelectVendorsForCSModal";
 
+import useNotifications from '../../hooks/useNotifications';
+import { useAuth } from '../../hooks/useAuth';
+
 interface CSItem {
   itemCode: string;
   itemName: string;
@@ -33,6 +36,12 @@ interface RFQData {
 }
 
 const GenerateCSTab: React.FC = () => {
+  //----------------------------------------------------------------------------------- For Notification
+  const token = localStorage.getItem('auth_token') || '';
+  const { user } = useAuth();
+  const { sendNotification } = useNotifications(user?.role, token);
+  //------------------------------------------------------------------------------------
+
   const [showSelectVendors, setShowSelectVendors] = useState(false);
   const [selectedItemIndex, setSelectedItemIndex] = useState<number | null>(
     null
@@ -330,6 +339,31 @@ const GenerateCSTab: React.FC = () => {
 
         console.log("CS details created successfully:", bulkResponse.data.data);
       }
+
+      // ------------------------------------------------------------------------------------------For notifications
+      try {
+        const selectedRFQData = rfqs.find((rfq) => rfq.id === selectedRFQ);
+        const rfqNumber = selectedRFQData?.name || selectedRFQ || 'RFQ';
+        const csNumber = csResponse.data.data?.cs_number || csId || 'CS';
+        
+        await sendNotification({
+          receiver_ids: ['admin'],
+          title: `Comparative Statement Submitted: ${csNumber}`,
+          message: `New Comparative Statement ${csNumber} has been submitted for RFQ ${rfqNumber} by ${user?.name || 'a user'} with ${selectedItems.length} items`,
+          service_type: 'PROC',
+          link: '',
+          sender_id: user?.role || 'user',
+          access: {
+            module: "PROC",
+            menu: "Vendor Quotation Management",
+          }
+        });
+        console.log(`Notification sent for Comparative Statement Submitted: ${csNumber}`);
+      } catch (notifError) {
+        console.error('Failed to send notification:', notifError);
+        // Continue with the flow even if notification fails
+      }
+      // ------------------------------------------------------------------------------------------
 
       alert("Comparative Statement submitted successfully!");
 

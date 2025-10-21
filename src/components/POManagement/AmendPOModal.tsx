@@ -12,6 +12,9 @@ import {
 } from "lucide-react";
 import axios from "axios";
 
+import useNotifications from '../../hooks/useNotifications';
+import { useAuth } from '../../hooks/useAuth';
+
 interface AmendPOModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -157,6 +160,12 @@ interface ApiItem {
 }
 
 const AmendPOModal: React.FC<AmendPOModalProps> = ({ isOpen, onClose, po }) => {
+  //----------------------------------------------------------------------------------- For Notification
+  const token = localStorage.getItem('auth_token') || '';
+  const { user } = useAuth();
+  const { sendNotification } = useNotifications(user?.role, token);
+  //------------------------------------------------------------------------------------
+
   const [searchTerm, setSearchTerm] = useState("");
   const [loading, setLoading] = useState(false);
   const [apiData, setApiData] = useState<ApiPOData | null>(null);
@@ -901,6 +910,30 @@ const AmendPOModal: React.FC<AmendPOModalProps> = ({ isOpen, onClose, po }) => {
         }
       }
 
+      // ------------------------------------------------------------------------------------------For notifications
+      try {
+        const amendedPONumber = createdPO?.po_number || poId || 'Amended PO';
+        const selectedItemsCount = Object.keys(groupedItems).length;
+        
+        await sendNotification({
+          receiver_ids: ['admin'],
+          title: `Purchase Order Amended: ${amendedPONumber}`,
+          message: `Purchase Order ${po.poNo} has been amended and new PO ${amendedPONumber} created for vendor ${po.vendorName} by ${user?.name || 'a user'} with ${selectedItemsCount} items (RFQ Source)`,
+          service_type: 'PROC',
+          link: '',
+          sender_id: user?.role || 'user',
+          access: {
+            module: "PROC",
+            menu: "PO Management",
+          }
+        });
+        console.log(`Notification sent for Purchase Order Amended (RFQ): ${amendedPONumber}`);
+      } catch (notifError) {
+        console.error('Failed to send notification:', notifError);
+        // Continue with the flow even if notification fails
+      }
+      // ------------------------------------------------------------------------------------------
+
       alert("Purchase Order amended successfully!");
       onClose();
     } catch (error) {
@@ -1085,6 +1118,29 @@ const AmendPOModal: React.FC<AmendPOModalProps> = ({ isOpen, onClose, po }) => {
       }
 
       if (detailsResponse.data.success) {
+        // ------------------------------------------------------------------------------------------For notifications
+        try {
+          const amendedPONumber = poResponse.data.data?.po_number || poId || 'Amended PO';
+          const selectedItemsCount = Object.keys(groupedItems).length;
+          
+          await sendNotification({
+            receiver_ids: ['admin'],
+            title: `Purchase Order Amended: ${amendedPONumber}`,
+            message: `Purchase Order ${po.poNo} has been amended and new PO ${amendedPONumber} created for vendor ${po.vendorName} by ${user?.name || 'a user'} with ${selectedItemsCount} items (Indent Source)`,
+            service_type: 'PROC',
+            link: '',
+            sender_id: user?.role || 'user',
+            access: {
+              module: "PROC",
+              menu: "PO Management",
+            }
+          });
+          console.log(`Notification sent for Purchase Order Amended (Indent): ${amendedPONumber}`);
+        } catch (notifError) {
+          console.error('Failed to send notification:', notifError);
+          // Continue with the flow even if notification fails
+        }
+        // ------------------------------------------------------------------------------------------
         alert("Purchase Order amended successfully!");
         onClose();
       } else {

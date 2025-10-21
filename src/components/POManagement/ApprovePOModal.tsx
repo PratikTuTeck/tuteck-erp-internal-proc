@@ -11,6 +11,9 @@ import {
 } from "lucide-react";
 import axios from "axios";
 
+import useNotifications from '../../hooks/useNotifications';
+import { useAuth } from '../../hooks/useAuth';
+
 interface ApprovePOModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -67,6 +70,12 @@ const ApprovePOModal: React.FC<ApprovePOModalProps> = ({
   onRefresh,
   po,
 }) => {
+  //----------------------------------------------------------------------------------- For Notification
+  const token = localStorage.getItem('auth_token') || '';
+  const { user } = useAuth();
+  const { sendNotification } = useNotifications(user?.role, token);
+  //------------------------------------------------------------------------------------
+
   const [comment, setComment] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -91,6 +100,26 @@ const ApprovePOModal: React.FC<ApprovePOModalProps> = ({
       );
 
       if (response.data?.success) {
+        // ------------------------------------------------------------------------------------------For notifications
+        try {
+          await sendNotification({
+            receiver_ids: ['admin'],
+            title: `Purchase Order Approved: ${po.poNo || 'PO'}`,
+            message: `Purchase Order ${po.poNo || 'PO'} for vendor ${po.vendorName || 'Unknown Vendor'} has been approved by ${user?.name || 'a user'}`,
+            service_type: 'PROC',
+            link: '',
+            sender_id: user?.role || 'user',
+            access: {
+              module: "PROC",
+              menu: "PO Management",
+            }
+          });
+          console.log(`Notification sent for Purchase Order Approved: ${po.poNo || 'PO'}`);
+        } catch (notifError) {
+          console.error('Failed to send notification:', notifError);
+          // Continue with the flow even if notification fails
+        }
+        // ------------------------------------------------------------------------------------------
         alert("Purchase Order approved successfully!");
         onRefresh?.(); // Refresh the parent table
         onClose();
@@ -122,6 +151,26 @@ const ApprovePOModal: React.FC<ApprovePOModalProps> = ({
       );
 
       if (response.data?.success) {
+        // ------------------------------------------------------------------------------------------For notifications
+        try {
+          await sendNotification({
+            receiver_ids: ['admin'],
+            title: `Purchase Order Rejected: ${po.poNo || 'PO'}`,
+            message: `Purchase Order ${po.poNo || 'PO'} for vendor ${po.vendorName || 'Unknown Vendor'} has been rejected by ${user?.name || 'a user'}`,
+            service_type: 'PROC',
+            link: '',
+            sender_id: user?.role || 'user',
+            access: {
+              module: "PROC",
+              menu: "PO Management",
+            }
+          });
+          console.log(`Notification sent for Purchase Order Rejected: ${po.poNo || 'PO'}`);
+        } catch (notifError) {
+          console.error('Failed to send notification:', notifError);
+          // Continue with the flow even if notification fails
+        }
+        // ------------------------------------------------------------------------------------------
         alert("Purchase Order rejected successfully!");
         onRefresh?.(); // Refresh the parent table
         onClose();

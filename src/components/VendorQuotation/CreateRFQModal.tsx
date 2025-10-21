@@ -12,6 +12,10 @@ import {
 } from "@mui/material";
 import SelectVendorsModal from "./SelectVendorsModal";
 
+
+import useNotifications from '../../hooks/useNotifications';
+import { useAuth } from '../../hooks/useAuth';
+
 interface CreateRFQModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -36,6 +40,13 @@ interface AggregatedItem {
 }
 
 const CreateRFQModal: React.FC<CreateRFQModalProps> = ({ isOpen, onClose }) => {
+
+  //----------------------------------------------------------------------------------- For Notification
+  const token = localStorage.getItem('auth_token') || '';
+  const { user } = useAuth();
+  const { sendNotification } = useNotifications(user?.role, token);
+  //------------------------------------------------------------------------------------
+
   const [showSelectVendors, setShowSelectVendors] = useState(false);
   const [selectedItemIndex, setSelectedItemIndex] = useState<number | null>(
     null
@@ -288,7 +299,7 @@ const CreateRFQModal: React.FC<CreateRFQModalProps> = ({ isOpen, onClose }) => {
       }
 
       const rfqId = rfqResponse.data.data.id;
-
+      const rfqNumber = rfqResponse.data.data.rfq_number;
       // Second API Call: Bulk create indents
       if (selectedIndents.length > 0) {
         const indentResponse = await axios.post(
@@ -354,7 +365,26 @@ const CreateRFQModal: React.FC<CreateRFQModalProps> = ({ isOpen, onClose }) => {
       if (!vendorItemsResponse.data.success) {
         throw new Error("Failed to associate vendor items with RFQ");
       }
-
+      // ------------------------------------------------------------------------------------------For notifications
+      try {
+        await sendNotification({
+          receiver_ids: ['admin'],
+          title: `RFQ Created : ${rfqNumber || 'New RFQ'}`,
+          message: `RFQ ${rfqNumber || 'New RFQ'} successfully Created by ${user?.name || 'a user'}`,
+          service_type: 'PROC',
+          link: '',
+          sender_id: user?.role || 'user',
+          access: {
+            module: "PROC",
+            menu: "Vendor Quotation Management",
+          }
+        });
+        console.log(`Notification sent for RFQ Created ${rfqNumber || 'New RFQ'}`);
+      } catch (notifError) {
+        console.error('Failed to send notification:', notifError);
+        // Continue with the flow even if notification fails
+      }
+      // ------------------------------------------------------------------------------------------
       alert("RFQ created successfully!");
       onClose();
     } catch (error) {

@@ -2,6 +2,9 @@ import React, { useState } from "react";
 import { X, Plus, Edit, Save, Trash2, Upload } from "lucide-react";
 import axios from "axios";
 
+import useNotifications from '../../hooks/useNotifications';
+import { useAuth } from '../../hooks/useAuth';
+
 interface VendorQuotationEntryProps {
   isOpen: boolean;
   onClose: () => void;
@@ -35,6 +38,12 @@ const VendorQuotationEntry: React.FC<VendorQuotationEntryProps> = ({
   onClose,
   selectedRFQ,
 }) => {
+  //----------------------------------------------------------------------------------- For Notification
+  const token = localStorage.getItem('auth_token') || '';
+  const { user } = useAuth();
+  const { sendNotification } = useNotifications(user?.role, token);
+  //------------------------------------------------------------------------------------
+
   const [rfqDetails, setRfqDetails] = useState<any>(null);
   const [vendors, setVendors] = useState<any[]>([]);
   const [availableRFQs, setAvailableRFQs] = useState<any[]>([]);
@@ -541,6 +550,30 @@ const VendorQuotationEntry: React.FC<VendorQuotationEntryProps> = ({
       if (!paymentTermsResponse.data.success) {
         throw new Error("Failed to create payment terms");
       }
+
+      // ------------------------------------------------------------------------------------------For notifications
+      try {
+        const selectedVendorName = vendors.find((v) => v.id === formData.vendor)?.name || 'Unknown Vendor';
+        const rfqNumber = rfqDetails?.rfq_number || formData.rfq || 'RFQ';
+        
+        await sendNotification({
+          receiver_ids: ['admin'],
+          title: `Vendor Quotation Submitted: ${rfqNumber}`,
+          message: `New vendor quotation has been submitted by ${selectedVendorName} for RFQ ${rfqNumber} by ${user?.name || 'a user'}`,
+          service_type: 'PROC',
+          link: '',
+          sender_id: user?.role || 'user',
+          access: {
+            module: "PROC",
+            menu: "Vendor Quotation Management",
+          }
+        });
+        console.log(`Notification sent for Vendor Quotation Submitted: ${rfqNumber}`);
+      } catch (notifError) {
+        console.error('Failed to send notification:', notifError);
+        // Continue with the flow even if notification fails
+      }
+      // ------------------------------------------------------------------------------------------
 
       alert("Vendor quotation submitted successfully!");
       onClose();

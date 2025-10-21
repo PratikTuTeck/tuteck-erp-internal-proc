@@ -10,6 +10,9 @@ import {
 } from "lucide-react";
 import axios from "axios";
 
+import useNotifications from '../../hooks/useNotifications';
+import { useAuth } from '../../hooks/useAuth';
+
 interface ApproveRFQModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -33,6 +36,12 @@ const ApproveRFQModal: React.FC<ApproveRFQModalProps> = ({
   onClose,
   rfq,
 }) => {
+  //----------------------------------------------------------------------------------- For Notification
+  const token = localStorage.getItem('auth_token') || '';
+  const { user } = useAuth();
+  const { sendNotification } = useNotifications(user?.role, token);
+  //------------------------------------------------------------------------------------
+
   const [comment, setComment] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -75,6 +84,26 @@ const ApproveRFQModal: React.FC<ApproveRFQModalProps> = ({
       );
 
       if (response.data.success) {
+        // ------------------------------------------------------------------------------------------For notifications
+        try {
+          await sendNotification({
+            receiver_ids: ['admin'],
+            title: `RFQ Approved: ${rfq.rfqNo || 'RFQ'}`,
+            message: `RFQ ${rfq.rfqNo || 'RFQ'} has been approved by ${user?.name || 'a user'}`,
+            service_type: 'PROC',
+            link: '',
+            sender_id: user?.role || 'user',
+            access: {
+              module: "PROC",
+              menu: "Vendor Quotation Management",
+            }
+          });
+          console.log(`Notification sent for RFQ Approved: ${rfq.rfqNo || 'RFQ'}`);
+        } catch (notifError) {
+          console.error('Failed to send notification:', notifError);
+          // Continue with the flow even if notification fails
+        }
+        // ------------------------------------------------------------------------------------------
         alert("RFQ approved successfully!");
         onClose();
       } else {
@@ -98,6 +127,26 @@ const ApproveRFQModal: React.FC<ApproveRFQModalProps> = ({
       );
 
       if (response.data.success) {
+        // ------------------------------------------------------------------------------------------For notifications
+        try {
+          await sendNotification({
+            receiver_ids: ['admin'],
+            title: `RFQ Rejected: ${rfq.rfqNo || 'RFQ'}`,
+            message: `RFQ ${rfq.rfqNo || 'RFQ'} has been rejected by ${user?.name || 'a user'}`,
+            service_type: 'PROC',
+            link: '',
+            sender_id: user?.role || 'user',
+            access: {
+              module: "PROC",
+              menu: "Vendor Quotation Management",
+            }
+          });
+          console.log(`Notification sent for RFQ Rejected: ${rfq.rfqNo || 'RFQ'}`);
+        } catch (notifError) {
+          console.error('Failed to send notification:', notifError);
+          // Continue with the flow even if notification fails
+        }
+        // ------------------------------------------------------------------------------------------
         alert("RFQ rejected successfully!");
         onClose();
       } else {

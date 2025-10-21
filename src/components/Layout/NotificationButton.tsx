@@ -3,6 +3,7 @@ import { Bell } from 'lucide-react';
 // @ts-ignore
 import useNotifications from '../../hooks/useNotifications';
 import  {useAuth}  from '../../hooks/useAuth';
+import NotificationPopup from './NotificationPopup';
 
 // Define the Notification type
 interface Notification {
@@ -20,6 +21,8 @@ export function NotificationButton() {
   const token = localStorage.getItem('auth_token');
 
   const [isOpen, setIsOpen] = useState(false);
+  const [popupNotification, setPopupNotification] = useState<Notification | null>(null);
+  const [showPopup, setShowPopup] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   console.log("user in NotificationButton:", user, "token:", token);
   
@@ -30,7 +33,23 @@ export function NotificationButton() {
     markAsRead,
     deleteNotifications,
     isConnected
-  } = useNotifications(user?.id, token);
+  } = useNotifications(user?.role, token);
+
+  // Show popup when a new notification arrives
+  useEffect(() => {
+    if (notifications.length > 0) {
+      const latestNotification = notifications[0];
+      if (!latestNotification.is_read) {
+        setPopupNotification(latestNotification);
+        setShowPopup(true);
+      }
+    }
+  }, [notifications]);
+
+  const handleClosePopup = () => {
+    setShowPopup(false);
+    setPopupNotification(null);
+  };
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -102,9 +121,16 @@ export function NotificationButton() {
     }
   };
 
-  return (
-    <div className="relative" ref={dropdownRef}>
-      <button
+ return (
+    <>
+      <NotificationPopup
+        isVisible={showPopup}
+        title={popupNotification?.title}
+        message={popupNotification?.message || ''}
+        onClose={handleClosePopup}
+      />
+      <div className="relative" ref={dropdownRef}>
+        <button
         className="relative p-2 rounded-full hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
         onClick={() => setIsOpen(!isOpen)}
         aria-label="Notifications"
@@ -183,7 +209,10 @@ export function NotificationButton() {
                         </button>
                       </div>
                     </div>
-                    <p className="text-sm text-gray-600 truncate">
+                    <p 
+                      className="text-sm text-gray-600 truncate"
+                      title={notification.message}
+                    >
                       {notification.message}
                     </p>
                   </li>
@@ -194,5 +223,6 @@ export function NotificationButton() {
         </div>
       )}
     </div>
+    </>
   );
 }

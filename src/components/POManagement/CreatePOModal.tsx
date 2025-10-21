@@ -2,6 +2,9 @@ import React, { useState } from "react";
 import { X, Search } from "lucide-react";
 import axios from "axios";
 
+import useNotifications from '../../hooks/useNotifications';
+import { useAuth } from '../../hooks/useAuth';
+
 interface CreatePOModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -36,6 +39,12 @@ interface WarehouseAllocation {
 }
 
 const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
+  //----------------------------------------------------------------------------------- For Notification
+  const token = localStorage.getItem('auth_token') || '';
+  const { user } = useAuth();
+  const { sendNotification } = useNotifications(user?.role, token);
+  //------------------------------------------------------------------------------------
+
   const [sourceType, setSourceType] = useState<"quotation" | "indent">(
     "quotation"
   );
@@ -785,6 +794,33 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
       //   }
       // }
 
+      // ------------------------------------------------------------------------------------------For notifications
+      try {
+        const selectedRFQData = rfqs.find((rfq) => rfq.id === formData.selectedRFQ);
+        const rfqNumber = selectedRFQData?.rfq_number || formData.selectedRFQ || 'RFQ';
+        const poNumber = createdPO?.po_number || poId || 'PO';
+        const selectedVendorData = vendors.find((vendor) => vendor.id === formData.selectedVendor);
+        const vendorName = selectedVendorData?.name || 'Unknown Vendor';
+        
+        await sendNotification({
+          receiver_ids: ['admin'],
+          title: `Purchase Order Created: ${poNumber}`,
+          message: `New Purchase Order ${poNumber} has been created from RFQ ${rfqNumber} for Vendor ${vendorName} by ${user?.name || 'a user'} with ${items.length} items`,
+          service_type: 'PROC',
+          link: '',
+          sender_id: user?.role || 'user',
+          access: {
+            module: "PROC",
+            menu: "PO Management",
+          }
+        });
+        console.log(`Notification sent for Purchase Order Created from RFQ: ${poNumber}`);
+      } catch (notifError) {
+        console.error('Failed to send notification:', notifError);
+        // Continue with the flow even if notification fails
+      }
+      // ------------------------------------------------------------------------------------------
+
       alert("Purchase Order created successfully!");
       onClose();
     } catch (error) {
@@ -966,6 +1002,32 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
         }
 
         if (detailsResponse.data.success) {
+          // ------------------------------------------------------------------------------------------For notifications
+          try {
+            const selectedIndentData = indents.find((indent) => indent.id === formData.selectedIndent);
+            const indentNumber = selectedIndentData?.indent_number || formData.selectedIndent || 'Indent';
+            const poNumber = poResponse.data.data?.po_number || poId || 'PO';
+            const selectedVendorData = vendors.find((vendor) => vendor.id === formData.selectedVendor);
+            const vendorName = selectedVendorData?.name || 'Unknown Vendor';
+            
+            await sendNotification({
+              receiver_ids: ['admin'],
+              title: `Purchase Order Created: ${poNumber}`,
+              message: `New Purchase Order ${poNumber} has been created from Indent ${indentNumber} for Vendor ${vendorName} by ${user?.name || 'a user'} with ${items.length} items`,
+              service_type: 'PROC',
+              link: '',
+              sender_id: user?.role || 'user',
+              access: {
+                module: "PROC",
+                menu: "PO Management",
+              }
+            });
+            console.log(`Notification sent for Purchase Order Created from Indent: ${poNumber}`);
+          } catch (notifError) {
+            console.error('Failed to send notification:', notifError);
+            // Continue with the flow even if notification fails
+          }
+          // ------------------------------------------------------------------------------------------
           alert("Purchase Order created successfully!");
           onClose();
         } else {
@@ -994,6 +1056,32 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
         );
 
         if (response.data.success) {
+          // ------------------------------------------------------------------------------------------For notifications
+          try {
+            const selectedRFQData = rfqs.find((rfq) => rfq.id === formData.selectedRFQ);
+            const rfqNumber = selectedRFQData?.rfq_number || formData.selectedRFQ || 'RFQ';
+            const poNumber = response.data.data?.po_number || response.data.data?.id || 'PO';
+            const selectedVendorData = vendors.find((vendor) => vendor.id === formData.selectedVendor);
+            const vendorName = selectedVendorData?.name || 'Unknown Vendor';
+            
+            await sendNotification({
+              receiver_ids: ['admin'],
+              title: `Purchase Order Created: ${poNumber}`,
+              message: `New Purchase Order ${poNumber} has been created from RFQ ${rfqNumber} for Vendor ${vendorName} by ${user?.name || 'a user'} (legacy path)`,
+              service_type: 'PROC',
+              link: '',
+              sender_id: user?.role || 'user',
+              access: {
+                module: "PROC",
+                menu: "PO Management",
+              }
+            });
+            console.log(`Notification sent for Purchase Order Created (legacy path): ${poNumber}`);
+          } catch (notifError) {
+            console.error('Failed to send notification:', notifError);
+            // Continue with the flow even if notification fails
+          }
+          // ------------------------------------------------------------------------------------------
           alert("Purchase Order created successfully!");
           onClose();
         } else {

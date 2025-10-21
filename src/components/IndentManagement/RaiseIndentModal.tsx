@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { X, Plus } from "lucide-react";
 import SelectItemsModal from "./SelectItemsModal";
+import useNotifications from '../../hooks/useNotifications';
+import { useAuth } from '../../hooks/useAuth';
 
 interface RaiseIndentModalProps {
   isOpen: boolean;
@@ -27,6 +29,12 @@ const RaiseIndentModal: React.FC<RaiseIndentModalProps> = ({
   onClose,
   onIndentCreated,
 }) => {
+  //----------------------------------------------------------------------------------- For Notification
+  const token = localStorage.getItem('auth_token') || '';
+  const { user } = useAuth();
+  const { sendNotification } = useNotifications(user?.role, token);
+  //------------------------------------------------------------------------------------
+
   const [showSelectItems, setShowSelectItems] = useState(false);
   const [selectedBOM, setSelectedBOM] = useState("");
   const [selectedItems, setSelectedItems] = useState<SelectedItem[]>([]);
@@ -121,7 +129,7 @@ const RaiseIndentModal: React.FC<RaiseIndentModalProps> = ({
 
       if (indentResponse.data.success) {
         const indentId = indentResponse.data.data.id;
-
+        const indentNumber = indentResponse.data.data.indent_number;
         // Second API call - Create indent details
         const indentDetails = selectedItems.map((item) => ({
           indent_id: indentId,
@@ -138,6 +146,26 @@ const RaiseIndentModal: React.FC<RaiseIndentModalProps> = ({
         );
 
         if (detailsResponse.data.success) {
+          // ------------------------------------------------------------------------------------------For notifications
+          try {
+            await sendNotification({
+              receiver_ids: ['admin'],
+              title: `Indent Created : ${indentNumber || 'New Indent'}`,
+              message: `Indent ${indentNumber || 'New Indent'} successfully Created by ${user?.name || 'a user'}`,
+              service_type: 'PROC',
+              link: '',
+              sender_id: user?.role || 'user',
+              access: {
+                module: "PROC",
+                menu: "Indent Management",
+              }
+            });
+            console.log(`Notification sent for Indent Created ${indentNumber || 'New Indent'}`);
+          } catch (notifError) {
+            console.error('Failed to send notification:', notifError);
+            // Continue with the flow even if notification fails
+          }
+          // ------------------------------------------------------------------------------------------
           alert("Indent created successfully!");
           onIndentCreated?.(); // Call callback to refresh indents list
           onClose();

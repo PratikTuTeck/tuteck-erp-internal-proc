@@ -9,6 +9,10 @@ import {
   XCircle,
 } from "lucide-react";
 
+
+import useNotifications from '../../hooks/useNotifications';
+import { useAuth } from '../../hooks/useAuth';
+
 interface ApproveIndentModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -41,6 +45,13 @@ const ApproveIndentModal: React.FC<ApproveIndentModalProps> = ({
   onClose,
   indent,
 }) => {
+  
+  //----------------------------------------------------------------------------------- For Notification
+  const token = localStorage.getItem('auth_token') || '';
+  const { user } = useAuth();
+  const { sendNotification } = useNotifications(user?.role, token);
+  //------------------------------------------------------------------------------------
+
   const [approvalComment, setApprovalComment] = useState("");
 
   if (!isOpen) return null;
@@ -67,6 +78,28 @@ const ApproveIndentModal: React.FC<ApproveIndentModalProps> = ({
       }
 
       const result = await response.json();
+
+      // ------------------------------------------------------------------------------------------For notifications
+      try {
+        await sendNotification({
+          receiver_ids: ['admin'],
+          title: `Indent Approved : ${result.data.data.indent_number || 'Indent'}`,
+          message: `Indent ${result.data.data.indent_number || 'Indent'} successfully Approved by ${user?.name || 'a user'}`,
+          service_type: 'PROC',
+          link: '',
+          sender_id: user?.role || 'user',
+          access: {
+            module: "PROC",
+            menu: "Indent Management",
+          }
+        });
+        console.log(`Notification sent for Indent Approved ${result.data.data.indent_number || 'Indent'}`);
+      } catch (notifError) {
+        console.error('Failed to send notification:', notifError);
+        // Continue with the flow even if notification fails
+      }
+      // ------------------------------------------------------------------------------------------
+
       console.log("Indent approved successfully:", result);
       alert("Indent approved successfully!");
       onClose();
@@ -98,6 +131,26 @@ const ApproveIndentModal: React.FC<ApproveIndentModalProps> = ({
       }
 
       const result = await response.json();
+      // ------------------------------------------------------------------------------------------For notifications
+      try {
+        await sendNotification({
+          receiver_ids: ['admin'],
+          title: `Indent Rejected : ${result.data.data.indent_number || 'Indent'}`,
+          message: `Indent ${result.data.data.indent_number || 'Indent'} successfully Rejected by ${user?.name || 'a user'}`,
+          service_type: 'PROC',
+          link: '',
+          sender_id: user?.role || 'user',
+          access: {
+            module: "PROC",
+            menu: "Indent Management",
+          }
+        });
+        console.log(`Notification sent for Indent Rejection ${result.data.data.indent_number || 'Indent'}`);
+      } catch (notifError) {
+        console.error('Failed to send notification:', notifError);
+        // Continue with the flow even if notification fails
+      }
+      // ------------------------------------------------------------------------------------------
       console.log("Indent rejected successfully:", result);
       alert("Indent rejected successfully!");
       onClose();
