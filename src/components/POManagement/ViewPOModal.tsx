@@ -41,6 +41,7 @@ interface ViewPOModalProps {
       qs_approved: boolean;
       vendor_id: string;
       warehouse_id: string | null;
+      warehouse_name: string | null;
       warehouse_code: string | null;
       item_details: {
         id: string;
@@ -152,8 +153,8 @@ const ViewPOModal: React.FC<ViewPOModalProps> = ({ isOpen, onClose, po }) => {
     warehouseId: string | null,
     warehouseCode: string | null
   ) => {
-    if (!warehouseId || !warehouseCode) return "Unassigned";
-    const warehouse = po.warehouse_details.find((w) => w.id === warehouseId);
+    if (!warehouseId && !warehouseCode) return "Unassigned";
+    const warehouse = po.items.find((w) => w.warehouse_id === warehouseId);
     return warehouse
       ? `${warehouse.warehouse_name} (${warehouse.warehouse_code})`
       : warehouseCode;
@@ -252,7 +253,7 @@ const ViewPOModal: React.FC<ViewPOModalProps> = ({ isOpen, onClose, po }) => {
                     <p className="text-sm text-gray-500">Warehouse(s)</p>
                     <div className="space-y-1">
                       {po.warehouse_details &&
-                      po.warehouse_details.length > 0 ? (
+                        po.warehouse_details.length > 0 ? (
                         po.warehouse_details.map((warehouse) => (
                           <div
                             key={warehouse.id}
