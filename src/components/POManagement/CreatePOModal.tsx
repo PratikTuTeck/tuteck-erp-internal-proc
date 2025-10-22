@@ -466,7 +466,19 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
       })
     );
   };
+// Add this helper function before the handleSave function
+const determinePOStatus = (): 'PENDING' | 'DRAFT' => {
+  // Check if all items have at least one warehouse allocation
+  const allItemsAllocated = items.every((item) => {
+    const allocations = warehouseAllocations[item.item_id] || [];
+    // Item is considered allocated if it has at least one valid allocation
+    return allocations.some(allocation => 
+      allocation.warehouse_id && allocation.qty > 0
+    );
+  });
 
+  return allItemsAllocated ? 'PENDING' : 'DRAFT';
+};
   // Warehouse allocation functions
   const toggleItemExpansion = (itemId: string) => {
     setExpandedItems((prev) => {
@@ -574,6 +586,7 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
   const handleSaveQuotationPO = async () => {
     setLoading(true);
     try {
+      const poStatus = determinePOStatus();
       // Step 1: Create PO record
       const poPayload = {
         po_origin_id: formData.selectedRFQ,
@@ -600,6 +613,7 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
         cgst: formData.cgst,
         inspection_status: false,
         cs_id: null,
+        po_status: poStatus,
       };
 
       console.log("Creating PO with payload:", poPayload);
@@ -834,6 +848,7 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
   const handleSaveIndentPO = async () => {
     setLoading(true);
     try {
+      const poStatus = determinePOStatus();
       // For Indent Details section - use new API structure
       if (sourceType === "indent") {
         // Step 1: Create Purchase Order
@@ -862,6 +877,7 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
           total_amount: totalAmount,
           cgst: parseFloat(formData.cgst.toString()),
           inspection_status: false,
+          po_status: poStatus,
         };
 
         const poResponse = await axios.post(
@@ -1048,6 +1064,7 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
           sgst: formData.sgst.toString(),
           cgst: formData.cgst.toString(),
           total_amount: totalAmount,
+          po_status: poStatus,
         };
 
         const response = await axios.post(

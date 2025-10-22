@@ -29,7 +29,7 @@ interface PO {
   poAmount: number;
   approvedBy?: string;
   approvedOn?: string;
-  status: "PENDING" | "APPROVED" | "REJECTED" | "GRN_COMPLETE" | "AMENDED";
+  status: "PENDING" | "APPROVED" | "REJECTED" | "GRN_COMPLETE" | "AMENDED" | "DRAFT";
   type: "Quotation" | "Indent";
   vendorAddress: string;
   warehouseName: string;
@@ -153,7 +153,7 @@ const POManagement: React.FC = () => {
           approvedOn: po.approved_on
             ? new Date(po.approved_on).toISOString().split("T")[0]
             : "",
-          status: po.po_status || "PENDING",
+          status: po.po_status || "DRAFT",
           type: po.po_origin_type === "RFQ" ? "Quotation" : "Indent",
           vendorAddress: po.vendor_address || "N/A", // From joined vendor table
           warehouseName: po.warehouse_names?.join(", ") || "N/A", // From joined warehouse table
@@ -193,6 +193,8 @@ const POManagement: React.FC = () => {
         return "bg-blue-100 text-blue-800";
       case "AMENDED":
         return "bg-purple-100 text-purple-800";
+      case "DRAFT":
+        return "bg-gray-100 text-gray-600";
       default:
         return "bg-gray-100 text-gray-800";
     }
@@ -416,6 +418,12 @@ const POManagement: React.FC = () => {
             {[
               { id: "all", label: "All po", count: purchaseOrders.length },
               {
+                id: "draft",
+                label: "Draft",
+                count: purchaseOrders.filter((po) => po.status === "DRAFT")
+                  .length,
+              },
+              {
                 id: "pending",
                 label: "Pending",
                 count: purchaseOrders.filter((po) => po.status === "PENDING")
@@ -570,7 +578,7 @@ const POManagement: React.FC = () => {
                             <Eye className="w-4 h-4" />
                           </button>
                         )}
-                        {po.status === "PENDING" && hasAccess("PO Management", "All po", "Edit") && (
+                        {(po.status === "PENDING" || po.status === "DRAFT") && hasAccess("PO Management", "All po", "Edit") && (
                           <button
                             onClick={() => handleEditPO(po)}
                             className="p-1 text-gray-600 hover:text-gray-800 transition-colors"

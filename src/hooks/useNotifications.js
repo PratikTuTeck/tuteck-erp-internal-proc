@@ -10,6 +10,7 @@ async function apiFetch(path, token, opts = {}) {
   const res = await fetch(`${API_BASE}${path}`, {
     headers: {
       'Content-Type': 'application/json',
+      'Cache-Control': 'no-cache',
       ...(token ? { Authorization: `Bearer ${token}` } : {})
     },
     ...opts
@@ -45,7 +46,8 @@ export default function useNotifications(userId, token) {
   const fetchHistory = async () => {
     if (!userId) return;
     try {
-      const response = await apiFetch(`/notifications/${encodeURIComponent(userId)}`, token);
+      const roleId = userId;
+      const response = await apiFetch(`/notifications/${encodeURIComponent(roleId)}`, token);
       // Extract notifications from the nested response structure
       const rows = response?.data?.notifications || [];
       
@@ -116,10 +118,14 @@ export default function useNotifications(userId, token) {
   const handleWsMessage = (raw) => {
     try {
       const msg = JSON.parse(raw);
-      // msg shape may vary — normalize:
-      // Expect either { id, title, message, ... } or { event_type, payload, id }
-      const notif = msg.notification || msg; // support msg.notification wrapper
-      const id = notif.id || notif.event_id || notif.notification_id;
+      // Expect { type: "notification", payload: { id, sender_id, receiver_id, title, message, ... } }
+      if (msg.type !== "notification" || !msg.payload) {
+        console.warn('Unexpected WS message type or missing payload', msg);
+        return;
+      }
+
+      const notif = msg.payload;
+      const id = notif.id;
       if (!id) {
         console.warn('Incoming notification missing id', notif);
         return;
@@ -130,12 +136,12 @@ export default function useNotifications(userId, token) {
       // Compose normalized notif object
       const normalized = {
         id,
-        title: notif.title || notif.event_type || 'Notification',
-        message: notif.message || (notif.payload && JSON.stringify(notif.payload)) || '',
-        link: notif.link || (notif.payload && notif.payload.link) || null,
+        title: notif.title || 'Notification',
+        message: notif.message || '',
+        link: notif.link || null,
         created_at: notif.created_at || new Date().toISOString(),
-        service_type: notif.service_type || (notif.payload && notif.payload.service_type) || null,
-        is_read: false,
+        service_type: notif.service_type || null,
+        is_read: notif.is_read || false,
         raw: notif
       };
 
@@ -152,10 +158,10 @@ export default function useNotifications(userId, token) {
   // Send notification to one or many users
   const sendNotification = async (data) => {
     try {
-      // Validate required fields
-      if (!data.receiver_ids || !Array.isArray(data.receiver_ids) || data.receiver_ids.length === 0) {
-        throw new Error('receiver_ids must be a non-empty array of user ids');
-      }
+      // // Validate required fields
+      // if (!data.receiver_ids || !Array.isArray(data.receiver_ids) || data.receiver_ids.length === 0) {
+      //   throw new Error('receiver_ids must be a non-empty array of user ids');
+      // }
       if (!data.title || data.title.trim() === '') {
         throw new Error('title is required');
       }
@@ -170,11 +176,12 @@ export default function useNotifications(userId, token) {
         title: data.title.trim(),
         message: data.message.trim(),
         link: data.link || null,
-        service_type: data.service_type || null
+        service_type: data.service_type || null,
+        access: data.access || null // Include access details if provided
       };
 
       // Send to server
-      const response = await apiFetch('/notifications/send', token, {
+      const response = await apiFetch('/notifications/', token, {
         method: 'POST',
         body: JSON.stringify(body)
       });
@@ -188,7 +195,7 @@ export default function useNotifications(userId, token) {
 
   // Setup WebSocket connection with reconnection/backoff
   useEffect(() => {
-    if (!userId) return;
+    if (!userId || !token) return;
     let closedByUser = false;
 
     // BroadcastChannel for multi-tab sync (fallback to localStorage if not supported)
@@ -272,13 +279,13 @@ export default function useNotifications(userId, token) {
 
   // initial fetch once
   useEffect(() => {
-    if (userId) fetchHistory();
+    if (userId && token) fetchHistory();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId]);
 
   // Poll fallback (optional) — every 30 sec if you want redundancy
   useEffect(() => {
-    if (!userId) return;
+    if (!userId || !token) return;
     const id = setInterval(() => {
       // only poll when not connected
       if (!connectedRef.current) fetchHistory();
