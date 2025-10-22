@@ -109,6 +109,7 @@ interface APIResponse {
       qs_approved: boolean;
       vendor_id: string;
       warehouse_id: string | null;
+      required_qty: string;
       warehouse_code: string | null;
       item_details: {
         id: string;
@@ -157,6 +158,7 @@ interface WarehouseAllocation {
   warehouse_name: string;
   qty: number;
   item_id: string;
+  isNew?: boolean; // Track if this is a new allocation
 }
 
 interface WarehouseFromAPI {
@@ -313,6 +315,7 @@ const EditPOModal: React.FC<EditPOModalProps> = ({ isOpen, onClose, po }) => {
               warehouse_name: warehouseName,
               qty: Number(item.qty) || 0,
               item_id: itemId,
+              isNew: false, // Mark as existing allocation
             });
           });
           setWarehouseAllocations(initialWarehouseAllocations);
@@ -383,51 +386,51 @@ const EditPOModal: React.FC<EditPOModalProps> = ({ isOpen, onClose, po }) => {
   const rfqs =
     poData?.purchase_order?.po_origin_type === "RFQ"
       ? [
-          {
-            id: poData.purchase_order.po_origin_number || "RFQ-001",
-            name: poData.purchase_order.po_origin_number || "Selected RFQ",
-          },
-        ]
+        {
+          id: poData.purchase_order.po_origin_number || "RFQ-001",
+          name: poData.purchase_order.po_origin_number || "Selected RFQ",
+        },
+      ]
       : [
-          { id: "RFQ-001", name: "RFQ-001 - Construction Materials" },
-          { id: "RFQ-002", name: "RFQ-002 - IT Equipment" },
-        ];
+        { id: "RFQ-001", name: "RFQ-001 - Construction Materials" },
+        { id: "RFQ-002", name: "RFQ-002 - IT Equipment" },
+      ];
 
   // Use actual Indent data if available, otherwise use dummy data
   const indents =
     poData?.purchase_order?.po_origin_type === "INDENT"
       ? [
-          {
-            id: poData.purchase_order.po_origin_number || "IND-001",
-            name: poData.purchase_order.po_origin_number || "Selected Indent",
-          },
-        ]
+        {
+          id: poData.purchase_order.po_origin_number || "IND-001",
+          name: poData.purchase_order.po_origin_number || "Selected Indent",
+        },
+      ]
       : [
-          { id: "IND-001", name: "IND-001 - Office Equipment" },
-          { id: "IND-002", name: "IND-002 - Construction Materials" },
-        ];
+        { id: "IND-001", name: "IND-001 - Office Equipment" },
+        { id: "IND-002", name: "IND-002 - Construction Materials" },
+      ];
 
   // Use actual vendor data if available, otherwise use dummy data
   const vendors = poData?.vendor_details
     ? [
-        {
-          id: poData.purchase_order.vendor_id,
-          name: poData.vendor_details.business_name,
-          address: `${poData.vendor_details.city}, ${poData.vendor_details.district}, ${poData.vendor_details.state} - ${poData.vendor_details.pincode}`,
-        },
-      ]
+      {
+        id: poData.purchase_order.vendor_id,
+        name: poData.vendor_details.business_name,
+        address: `${poData.vendor_details.city}, ${poData.vendor_details.district}, ${poData.vendor_details.state} - ${poData.vendor_details.pincode}`,
+      },
+    ]
     : [
-        {
-          id: "V001",
-          name: "TechCorp Solutions Pvt Ltd",
-          address: "123 Tech Street, Bangalore - 560001",
-        },
-        {
-          id: "V002",
-          name: "Innovate India Limited",
-          address: "456 Innovation Hub, Mumbai - 400001",
-        },
-      ];
+      {
+        id: "V001",
+        name: "TechCorp Solutions Pvt Ltd",
+        address: "123 Tech Street, Bangalore - 560001",
+      },
+      {
+        id: "V002",
+        name: "Innovate India Limited",
+        address: "456 Innovation Hub, Mumbai - 400001",
+      },
+    ];
 
   // Warehouse allocation functions
   const toggleItemExpansion = (itemId: string) => {
@@ -444,11 +447,12 @@ const EditPOModal: React.FC<EditPOModalProps> = ({ isOpen, onClose, po }) => {
 
   const addWarehouseAllocation = (itemId: string) => {
     const newAllocation: WarehouseAllocation = {
-      id: `${itemId}-${Date.now()}`,
+      id: `new-${itemId}-${Date.now()}`,
       warehouse_id: "",
       warehouse_name: "",
       qty: 0,
       item_id: itemId,
+      isNew: true, // Mark as new allocation
     };
 
     setWarehouseAllocations((prev) => ({
@@ -488,12 +492,68 @@ const EditPOModal: React.FC<EditPOModalProps> = ({ isOpen, onClose, po }) => {
     }));
   };
 
+  // Delete warehouse allocation via API if it exists on server, otherwise just remove locally
+  const handleDeleteWarehouseAllocation = async (
+    itemId: string,
+    allocationId: string
+  ) => {
+    const allocation = warehouseAllocations[itemId]?.find(
+      (a) => a.id === allocationId
+    );
+    if (!allocation) return;
+
+    // Prevent deleting the last warehouse allocation for an item
+    const allocationsForItem = warehouseAllocations[itemId] || [];
+    const nonDeletedCount = allocationsForItem.filter((a) => a.id !== allocationId).length;
+    if (nonDeletedCount === 0) {
+      alert(
+        "Each item must have at least one warehouse. Please add another warehouse before deleting this one"
+      );
+      return;
+    }
+
+    // If allocation is new/local only, just remove it locally
+    if (allocation.isNew || allocationId.toString().startsWith("new-")) {
+      removeWarehouseAllocation(itemId, allocationId);
+      return;
+    }
+
+    // Ask backend to soft-delete the purchase-order-details record
+    try {
+      const response = await fetch(
+        `${import.meta.env.VITE_API_BASE_URL}/purchase-order-details/${allocationId}`,
+        {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(
+          `Failed to delete allocation: ${response.status} ${response.statusText}`
+        );
+      }
+
+      const result = await response.json();
+      console.log("Delete allocation result:", result);
+
+      // Remove allocation from local state on success
+      removeWarehouseAllocation(itemId, allocationId);
+      alert("Allocation removed successfully");
+    } catch (error) {
+      console.error("Error deleting allocation:", error);
+      alert(
+        `Error deleting allocation: ${error instanceof Error ? error.message : "Unknown error"}`
+      );
+    }
+  };
+
   const getTotalAllocatedQuantity = (itemId: string): number => {
     const allocations = warehouseAllocations[itemId] || [];
     return allocations.reduce((sum, allocation) => sum + allocation.qty, 0);
   };
 
-  // Save individual warehouse allocation
+  // Save individual warehouse allocation - handles both new and existing
   const handleWarehouseAllocationSave = async (
     itemId: string,
     allocationId: string
@@ -518,42 +578,17 @@ const EditPOModal: React.FC<EditPOModalProps> = ({ isOpen, onClose, po }) => {
     setSavingItems((prev) => new Set(prev).add(allocationId));
 
     try {
-      const payload = {
-        po_id: poData?.purchase_order?.id || po.id,
-        vendor_id: poData?.purchase_order?.vendor_id || "default_vendor",
-        item_id: apiItem.item_id,
-        qty: allocation.qty,
-        rate: items.find((i) => i.id === itemId)?.rate || 0,
-        warehouse_id: allocation.warehouse_id,
-      };
-
-      const response = await fetch(
-        `${
-          import.meta.env.VITE_API_BASE_URL
-        }/purchase-order-details/update-qty-rate`,
-        {
-          method: "PATCH",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(payload),
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error(
-          `Failed to update warehouse allocation: ${response.status} ${response.statusText}`
-        );
+      if (allocation.isNew) {
+        // Handle new warehouse allocation - call bulk APIs
+        await handleNewWarehouseAllocation(allocation, apiItem);
+      } else {
+        // Handle existing warehouse allocation - call update API
+        await handleExistingWarehouseAllocation(allocation, apiItem);
       }
-
-      const result = await response.json();
-      console.log("Warehouse allocation update successful:", result);
-      alert("Warehouse allocation updated successfully!");
     } catch (error) {
-      console.error("Error updating warehouse allocation:", error);
+      console.error("Error saving warehouse allocation:", error);
       alert(
-        `Error updating warehouse allocation: ${
-          error instanceof Error ? error.message : "Unknown error"
+        `Error saving warehouse allocation: ${error instanceof Error ? error.message : "Unknown error"
         }`
       );
     } finally {
@@ -563,6 +598,126 @@ const EditPOModal: React.FC<EditPOModalProps> = ({ isOpen, onClose, po }) => {
         return newSet;
       });
     }
+  };
+
+  // Handle new warehouse allocation with bulk APIs
+  const handleNewWarehouseAllocation = async (
+    allocation: WarehouseAllocation,
+    apiItem: NonNullable<typeof poData>["items"][0]
+  ) => {
+    const currentItem = items.find((i) => i.id === allocation.item_id);
+    const rate = currentItem?.rate || 0;
+    console.log("po data:", poData);
+    // Prepare bulk data for purchase-order-details
+    const purchaseOrderDetailsPayload = {
+      po_id: poData?.purchase_order?.id || po.id,
+      vendor_id: poData?.purchase_order?.vendor_id || "default_vendor",
+      item_id: apiItem.item_id,
+      qty: allocation.qty,
+      rate: rate,
+      warehouse_id: allocation.warehouse_id,
+      notes: "", // Can be added as a field later if needed
+      qs_approved: false,
+      required_qty: poData?.items[0].required_qty // For new allocations, required_qty is same as allocated qty
+    };
+
+    // Prepare bulk data for purchase-order-warehouse
+    const purchaseOrderWarehousePayload = {
+      po_id: poData?.purchase_order?.id || po.id,
+      warehouse_id: allocation.warehouse_id,
+      item_id: apiItem.item_id,
+      qty: allocation.qty
+    };
+
+    // Call both bulk APIs
+    const [detailsResponse, warehouseResponse] = await Promise.all([
+      fetch(`${import.meta.env.VITE_API_BASE_URL}/purchase-order-details/bulk`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify([purchaseOrderDetailsPayload]),
+      }),
+      fetch(`${import.meta.env.VITE_API_BASE_URL}/purchase-order-warehouse/bulk`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify([purchaseOrderWarehousePayload]),
+      })
+    ]);
+
+    if (!detailsResponse.ok) {
+      throw new Error(
+        `Failed to create purchase order details: ${detailsResponse.status} ${detailsResponse.statusText}`
+      );
+    }
+
+    if (!warehouseResponse.ok) {
+      throw new Error(
+        `Failed to create purchase order warehouse: ${warehouseResponse.status} ${warehouseResponse.statusText}`
+      );
+    }
+
+    const detailsResult = await detailsResponse.json();
+    const warehouseResult = await warehouseResponse.json();
+
+    console.log("Bulk creation successful:", { detailsResult, warehouseResult });
+    alert("New warehouse allocation created successfully!");
+
+    // Mark allocation as no longer new and update with real ID if available
+    setWarehouseAllocations((prev) => ({
+      ...prev,
+      [allocation.item_id]: prev[allocation.item_id]?.map((alloc) =>
+        alloc.id === allocation.id
+          ? { ...alloc, isNew: false, id: detailsResult.data?.[0]?.id || alloc.id }
+          : alloc
+      ) || [],
+    }));
+  };
+
+  // Handle existing warehouse allocation with update API
+  const handleExistingWarehouseAllocation = async (
+    allocation: WarehouseAllocation,
+    apiItem: NonNullable<typeof poData>["items"][0]
+  ) => {
+    const currentItem = items.find((i) => i.id === allocation.item_id);
+    const rate = currentItem?.rate || 0;
+
+    const payload = {
+      po_id: poData?.purchase_order?.id || po.id,
+      vendor_id: poData?.purchase_order?.vendor_id || "default_vendor",
+      item_id: apiItem.item_id,
+      qty: allocation.qty,
+      rate: rate,
+      warehouse_id: allocation.warehouse_id,
+    };
+
+    // Use the record id for updating a specific purchase-order-details entry
+    if (!allocation.id) {
+      throw new Error("Cannot determine purchase-order-details record id for update");
+    }
+
+    const response = await fetch(
+      `${import.meta.env.VITE_API_BASE_URL}/purchase-order-details/${allocation.id}`,
+      {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(
+        `Failed to update warehouse allocation: ${response.status} ${response.statusText}`
+      );
+    }
+
+    const result = await response.json();
+    console.log("Warehouse allocation update successful:", result);
+    alert("Warehouse allocation updated successfully!");
   };
 
   // Handle rate update for items
@@ -595,13 +750,17 @@ const EditPOModal: React.FC<EditPOModalProps> = ({ isOpen, onClose, po }) => {
         qty: Number(apiItem.qty) || 0,
         rate: newRate,
       };
+      console.log("api item:", apiItem);
+
+      // Ensure we have the specific purchase-order-details record id from API data
+      if (!apiItem.id) {
+        throw new Error("Cannot determine purchase-order-details record id for rate update");
+      }
 
       const response = await fetch(
-        `${
-          import.meta.env.VITE_API_BASE_URL
-        }/purchase-order-details/update-qty-rate`,
+        `${import.meta.env.VITE_API_BASE_URL}/purchase-order-details/${apiItem.id}`,
         {
-          method: "PATCH",
+          method: "PUT",
           headers: {
             "Content-Type": "application/json",
           },
@@ -627,8 +786,7 @@ const EditPOModal: React.FC<EditPOModalProps> = ({ isOpen, onClose, po }) => {
     } catch (error) {
       console.error("Error updating item rate:", error);
       alert(
-        `Error updating item rate: ${
-          error instanceof Error ? error.message : "Unknown error"
+        `Error updating item rate: ${error instanceof Error ? error.message : "Unknown error"
         }`
       );
       // Revert the local state change on error
@@ -696,8 +854,11 @@ const EditPOModal: React.FC<EditPOModalProps> = ({ isOpen, onClose, po }) => {
     const currentItem = items.find((item) => item.id === itemId);
     const rate = currentItem?.rate || parseFloat(entries[0]?.rate || "0");
 
-    const totalValue = totalQty * rate;
-    return { totalQty, totalValue, rate };
+    // Calculate total based on allocated quantities instead of required quantities
+    const allocatedQty = getTotalAllocatedQuantity(itemId);
+    const totalValue = allocatedQty * rate; // Use allocated qty instead of total qty
+
+    return { totalQty, totalValue, rate, allocatedQty };
   };
 
   const totalAmount = Object.entries(groupedItems).reduce(
@@ -746,8 +907,7 @@ const EditPOModal: React.FC<EditPOModalProps> = ({ isOpen, onClose, po }) => {
     } catch (error) {
       console.error("Error updating PO:", error);
       alert(
-        `Error: ${
-          error instanceof Error ? error.message : "Unknown error occurred"
+        `Error: ${error instanceof Error ? error.message : "Unknown error occurred"
         }`
       );
     }
@@ -797,8 +957,7 @@ const EditPOModal: React.FC<EditPOModalProps> = ({ isOpen, onClose, po }) => {
                     setError(null);
                     try {
                       const response = await fetch(
-                        `${import.meta.env.VITE_API_BASE_URL}/purchase-orders/${
-                          po.id
+                        `${import.meta.env.VITE_API_BASE_URL}/purchase-orders/${po.id
                         }`
                       );
                       if (!response.ok) {
@@ -893,7 +1052,7 @@ const EditPOModal: React.FC<EditPOModalProps> = ({ isOpen, onClose, po }) => {
                 </div>
 
                 {poData?.purchase_order?.po_origin_type === "RFQ" ||
-                po.type === "Quotation" ? (
+                  po.type === "Quotation" ? (
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Select RFQ <span className="text-red-500">*</span>
@@ -1162,13 +1321,14 @@ const EditPOModal: React.FC<EditPOModalProps> = ({ isOpen, onClose, po }) => {
                   {Object.keys(filteredGroupedItems).length > 0 ? (
                     <div className="space-y-2">
                       {/* Header Row */}
-                      <div className="grid grid-cols-8 gap-4 text-sm font-medium text-gray-500 px-4 py-2 bg-gray-50 rounded-lg">
+                      <div className="grid grid-cols-9 gap-4 text-sm font-medium text-gray-500 px-4 py-2 bg-gray-50 rounded-lg">
                         <div>Item Code</div>
                         <div>Item Name</div>
                         <div>UOM</div>
                         <div>HSN Code</div>
                         <div>Rate</div>
-                        <div>Total Quantity</div>
+                        <div>Required Quantity</div>
+                        <div>Allocated Quantity</div>
                         <div>Total Value</div>
                         <div>Actions</div>
                       </div>
@@ -1179,17 +1339,17 @@ const EditPOModal: React.FC<EditPOModalProps> = ({ isOpen, onClose, po }) => {
                           if (!itemGroup.item_details) {
                             return null;
                           }
-
+                          console.log("fetched daya:", itemGroup)
                           const isExpanded = expandedItems.has(itemId);
                           const allocations =
                             warehouseAllocations[itemId] || [];
-                          const { totalQty, totalValue } = calculateItemTotals(
+                          const { totalValue } = calculateItemTotals(
                             itemGroup.entries,
                             itemId
                           );
                           const totalAllocatedQty =
                             getTotalAllocatedQuantity(itemId);
-                          const remainingQty = totalQty - totalAllocatedQty;
+                          const remainingQty = Number(itemGroup.entries[0].required_qty) - totalAllocatedQty;
 
                           return (
                             <div
@@ -1208,7 +1368,7 @@ const EditPOModal: React.FC<EditPOModalProps> = ({ isOpen, onClose, po }) => {
                                     ) : (
                                       <ChevronRight className="w-4 h-4 text-gray-500" />
                                     )}
-                                    <div className="grid grid-cols-8 gap-4 flex-1">
+                                    <div className="grid grid-cols-9 gap-4 flex-1">
                                       <div>
                                         <p className="font-medium text-gray-900">
                                           {itemGroup.item_details.item_code ||
@@ -1248,12 +1408,12 @@ const EditPOModal: React.FC<EditPOModalProps> = ({ isOpen, onClose, po }) => {
                                                 prevItems.map((item) =>
                                                   item.id === itemId
                                                     ? {
-                                                        ...item,
-                                                        rate: newRate,
-                                                        total:
-                                                          newRate *
-                                                          item.quantity,
-                                                      }
+                                                      ...item,
+                                                      rate: newRate,
+                                                      total:
+                                                        newRate *
+                                                        item.quantity,
+                                                    }
                                                     : item
                                                 )
                                               );
@@ -1267,7 +1427,12 @@ const EditPOModal: React.FC<EditPOModalProps> = ({ isOpen, onClose, po }) => {
                                       </div>
                                       <div>
                                         <p className="text-gray-600">
-                                          {totalQty}
+                                          {itemGroup.entries[0].required_qty}
+                                        </p>
+                                      </div>
+                                      <div>
+                                        <p className="text-gray-600">
+                                          {totalAllocatedQty}
                                         </p>
                                       </div>
                                       <div>
@@ -1326,14 +1491,14 @@ const EditPOModal: React.FC<EditPOModalProps> = ({ isOpen, onClose, po }) => {
                                         <span className="text-gray-400 mx-1">
                                           /
                                         </span>
-                                        <span>{totalQty}</span>
+                                        <span>{itemGroup.entries[0].required_qty}</span>
                                         {remainingQty > 0 && (
                                           <span className="text-orange-600 ml-2">
                                             ({remainingQty} remaining)
                                           </span>
                                         )}
                                       </div>
-                                      {/* <button
+                                      <button
                                         onClick={(e) => {
                                           e.stopPropagation();
                                           addWarehouseAllocation(itemId);
@@ -1342,7 +1507,7 @@ const EditPOModal: React.FC<EditPOModalProps> = ({ isOpen, onClose, po }) => {
                                         title="Add warehouse allocation"
                                       >
                                         + Add Warehouse
-                                      </button> */}
+                                      </button>
                                     </div>
 
                                     <div className="overflow-x-auto">
@@ -1489,13 +1654,13 @@ const EditPOModal: React.FC<EditPOModalProps> = ({ isOpen, onClose, po }) => {
                                                       }
                                                       className="w-20 px-2 py-1 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                                                       min="0"
-                                                      max={totalQty}
+                                                      max={itemGroup.entries[0].required_qty}
                                                     />
                                                   </td>
                                                   <td className="py-2 px-3">
                                                     <button
                                                       onClick={() =>
-                                                        removeWarehouseAllocation(
+                                                        handleDeleteWarehouseAllocation(
                                                           itemId,
                                                           allocation.id
                                                         )
@@ -1521,18 +1686,16 @@ const EditPOModal: React.FC<EditPOModalProps> = ({ isOpen, onClose, po }) => {
                                                         !allocation.warehouse_id ||
                                                         allocation.qty <= 0
                                                       }
-                                                      className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
-                                                        allocation.warehouse_id &&
+                                                      className={`px-3 py-1 rounded text-sm font-medium transition-colors ${allocation.warehouse_id &&
                                                         allocation.qty > 0
-                                                          ? "bg-blue-600 text-white hover:bg-blue-700"
-                                                          : "bg-gray-100 text-gray-400 cursor-not-allowed"
-                                                      } ${
-                                                        savingItems.has(
+                                                        ? "bg-blue-600 text-white hover:bg-blue-700"
+                                                        : "bg-gray-100 text-gray-400 cursor-not-allowed"
+                                                        } ${savingItems.has(
                                                           allocation.id
                                                         )
                                                           ? "opacity-50 cursor-not-allowed"
                                                           : ""
-                                                      }`}
+                                                        }`}
                                                     >
                                                       {savingItems.has(
                                                         allocation.id

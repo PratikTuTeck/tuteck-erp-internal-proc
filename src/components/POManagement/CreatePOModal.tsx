@@ -27,7 +27,8 @@ interface POItem {
   rate: number;
   quantity: number;
   totalPrice: number;
-  cs_id?: string; // CS ID for quotation-sourced items
+  cs_id?: string;
+  required_qty?: number; // Required quantity for the item
 }
 
 interface WarehouseAllocation {
@@ -90,6 +91,7 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
   ]);
 
   const [items, setItems] = useState<POItem[]>([]);
+  const [requiredItems, setRequiredItems] = useState<POItem[]>([]);
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
   const [warehouseAllocations, setWarehouseAllocations] = useState<{
     [itemId: string]: WarehouseAllocation[];
@@ -135,9 +137,8 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
       if (response.data?.data) {
         const mappedIndents = response.data.data.map((indent: any) => ({
           id: indent.id,
-          name: `${indent.indent_number} - ${
-            indent.association_type || "Project"
-          }`,
+          name: `${indent.indent_number} - ${indent.association_type || "Project"
+            }`,
         }));
         setIndents(mappedIndents);
       }
@@ -195,8 +196,7 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
   const fetchApprovedVendors = async () => {
     try {
       const response = await axios.get(
-        `${
-          import.meta.env.VITE_CRM_API_BASE_URL
+        `${import.meta.env.VITE_CRM_API_BASE_URL
         }/vendor/filter?approval_status=APPROVED`
       );
       if (response.data?.data) {
@@ -253,6 +253,7 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
             (item.latest_lowest_net_rate || 0) * (item.required_quantity || 0),
         }));
         setItems(mappedItems);
+        setRequiredItems(mappedItems.quantity); // Store original items for reset on search clear
         console.log("Fetched mapped Indent Items:", mappedItems);
       }
     } catch (err) {
@@ -267,8 +268,7 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
     try {
       setLoading(true);
       const response = await axios.get(
-        `${
-          import.meta.env.VITE_API_BASE_URL
+        `${import.meta.env.VITE_API_BASE_URL
         }/vendor-quotation/vendor-quotation-with-cs`,
         {
           params: {
@@ -289,8 +289,8 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
             amount: term.charges_percent
               ? `${term.charges_percent}%`
               : term.charges_amount
-              ? `₹${term.charges_amount}`
-              : "",
+                ? `₹${term.charges_amount}`
+                : "",
             reason: term.note || "",
             isFromQuotation: true, // Mark as from quotation for non-editable display
           }));
@@ -315,6 +315,7 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
             cs_id: item.cs_id || "", // Capture CS ID for updating is_po_generated status
           }));
           setItems(mappedItems);
+          console.log("Fetched mapped CS Items:", mappedItems);
         } else {
           // No items in successful response, clear the state
           setItems([]);
@@ -646,6 +647,7 @@ const determinePOStatus = (): 'PENDING' | 'DRAFT' => {
         notes: string;
         qs_approved: boolean;
         warehouse_id: string | null;
+        required_qty?: number;
       }
 
       const poDetailsPayload: PODetailPayload[] = [];
@@ -666,6 +668,7 @@ const determinePOStatus = (): 'PENDING' | 'DRAFT' => {
                 notes: "",
                 qs_approved: false,
                 warehouse_id: allocation.warehouse_id,
+                required_qty: requiredItems,
               });
             }
           });
@@ -710,8 +713,7 @@ const determinePOStatus = (): 'PENDING' | 'DRAFT' => {
 
         try {
           await axios.post(
-            `${
-              import.meta.env.VITE_API_BASE_URL
+            `${import.meta.env.VITE_API_BASE_URL
             }/purchase-order-warehouse/bulk`,
             warehousePayload
           );
@@ -729,13 +731,13 @@ const determinePOStatus = (): 'PENDING' | 'DRAFT' => {
           .map(async (item) => {
             try {
               const updateResponse = await axios.patch(
-                `${import.meta.env.VITE_API_BASE_URL}/cs-details/${
-                  item.cs_id
+                `${import.meta.env.VITE_API_BASE_URL}/cs-details/${item.cs_id
                 }/po-status`,
-                { is_po_generated: true,
+                {
+                  is_po_generated: true,
                   item_id: item.item_id,
                   vendor_id: formData.selectedVendor
-                 }
+                }
               );
 
               if (!updateResponse.data.success) {
@@ -907,6 +909,7 @@ const determinePOStatus = (): 'PENDING' | 'DRAFT' => {
           notes: string;
           qs_approved: boolean;
           warehouse_id: string | null;
+          required_qty: number;
         }
 
         const poDetailsPayload: PODetailPayload[] = [];
@@ -921,12 +924,7 @@ const determinePOStatus = (): 'PENDING' | 'DRAFT' => {
             );
 
             if (validAllocations.length > 0) {
-              const totalAllocated = validAllocations.reduce(
-                (sum, allocation) => sum + allocation.qty,
-                0
-              );
-
-              // Create entries for valid allocations
+              // Create entries for valid allocations only
               validAllocations.forEach((allocation) => {
                 poDetailsPayload.push({
                   po_id: poId,
@@ -937,23 +935,9 @@ const determinePOStatus = (): 'PENDING' | 'DRAFT' => {
                   notes: "",
                   qs_approved: false,
                   warehouse_id: allocation.warehouse_id,
+                  required_qty: item.quantity,
                 });
               });
-
-              // If there's remaining quantity after allocations, create a fallback entry
-              const remainingQty = item.quantity - totalAllocated;
-              if (remainingQty > 0) {
-                poDetailsPayload.push({
-                  po_id: poId,
-                  vendor_id: formData.selectedVendor,
-                  item_id: item.item_id,
-                  qty: remainingQty,
-                  rate: item.rate,
-                  notes: "",
-                  qs_approved: false,
-                  warehouse_id: null,
-                });
-              }
             } else {
               // No valid allocations, create fallback entry for full quantity
               poDetailsPayload.push({
@@ -965,6 +949,7 @@ const determinePOStatus = (): 'PENDING' | 'DRAFT' => {
                 notes: "",
                 qs_approved: false,
                 warehouse_id: null,
+                required_qty: item.quantity,
               });
             }
           } else {
@@ -978,6 +963,7 @@ const determinePOStatus = (): 'PENDING' | 'DRAFT' => {
               notes: "",
               qs_approved: false,
               warehouse_id: null,
+              required_qty: item.quantity,
             });
           }
         });
@@ -1004,8 +990,7 @@ const determinePOStatus = (): 'PENDING' | 'DRAFT' => {
 
           try {
             await axios.post(
-              `${
-                import.meta.env.VITE_API_BASE_URL
+              `${import.meta.env.VITE_API_BASE_URL
               }/purchase-order-warehouse/bulk`,
               warehousePayload
             );
@@ -1121,423 +1106,314 @@ const determinePOStatus = (): 'PENDING' | 'DRAFT' => {
   // Filter vendors based on RFQ selection (won vendors only)
   const availableVendors = vendors;
 
- return (
-  <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-    <div className="bg-white rounded-lg shadow-xl max-w-7xl w-full mx-4 max-h-[95vh] overflow-hidden flex flex-col">
-      <div className="flex items-center justify-between p-6 border-b border-gray-200">
-        <h2 className="text-xl font-semibold text-gray-900">
-          Create Purchase Order
-        </h2>
-        <button
-          onClick={onClose}
-          className="text-gray-400 hover:text-gray-600 transition-colors"
-        >
-          <X className="w-6 h-6" />
-        </button>
-      </div>
-
-      <div className="flex-1 overflow-y-auto p-6 space-y-8">
-        {/* Source Selection */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-3">
-            Source Type
-          </label>
-          <div className="flex space-x-6">
-            <label className="flex items-center">
-              <input
-                type="radio"
-                value="quotation"
-                checked={sourceType === "quotation"}
-                onChange={(e) =>
-                  handleSourceTypeChange(e.target.value as "quotation")
-                }
-                className="mr-2"
-              />
-              <span>Quotation</span>
-            </label>
-            <label className="flex items-center">
-              <input
-                type="radio"
-                value="indent"
-                checked={sourceType === "indent"}
-                onChange={(e) =>
-                  handleSourceTypeChange(e.target.value as "indent")
-                }
-                className="mr-2"
-              />
-              <span>Indent Details</span>
-            </label>
-          </div>
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg shadow-xl max-w-7xl w-full mx-4 max-h-[95vh] overflow-hidden flex flex-col">
+        <div className="flex items-center justify-between p-6 border-b border-gray-200">
+          <h2 className="text-xl font-semibold text-gray-900">
+            Create Purchase Order
+          </h2>
+          <button
+            onClick={onClose}
+            className="text-gray-400 hover:text-gray-600 transition-colors"
+          >
+            <X className="w-6 h-6" />
+          </button>
         </div>
 
-        {/* Form Fields */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="flex-1 overflow-y-auto p-6 space-y-8">
+          {/* Source Selection */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              PO Date <span className="text-red-500">*</span>
+            <label className="block text-sm font-medium text-gray-700 mb-3">
+              Source Type
             </label>
-            <input
-              type="date"
-              value={formData.poDate}
-              onChange={(e) =>
-                setFormData({ ...formData, poDate: e.target.value })
-              }
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-
-          {sourceType === "quotation" ? (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Select RFQ <span className="text-red-500">*</span>
+            <div className="flex space-x-6">
+              <label className="flex items-center">
+                <input
+                  type="radio"
+                  value="quotation"
+                  checked={sourceType === "quotation"}
+                  onChange={(e) =>
+                    handleSourceTypeChange(e.target.value as "quotation")
+                  }
+                  className="mr-2"
+                />
+                <span>Quotation</span>
               </label>
-              <select
-                value={formData.selectedRFQ}
-                onChange={(e) => handleRFQChange(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="">Select RFQ</option>
-                {rfqs.map((rfq) => (
-                  <option key={rfq.id} value={rfq.id}>
-                    {rfq.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          ) : (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Select Indent <span className="text-red-500">*</span>
+              <label className="flex items-center">
+                <input
+                  type="radio"
+                  value="indent"
+                  checked={sourceType === "indent"}
+                  onChange={(e) =>
+                    handleSourceTypeChange(e.target.value as "indent")
+                  }
+                  className="mr-2"
+                />
+                <span>Indent Details</span>
               </label>
-              <select
-                value={formData.selectedIndent}
-                onChange={(e) => handleIndentChange(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="">Select Indent</option>
-                {indents.map((indent) => (
-                  <option key={indent.id} value={indent.id}>
-                    {indent.name}
-                  </option>
-                ))}
-              </select>
             </div>
-          )}
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Select Vendor <span className="text-red-500">*</span>
-            </label>
-            <select
-              value={formData.selectedVendor}
-              onChange={(e) => handleVendorChange(e.target.value)}
-              disabled={
-                (sourceType === "quotation" && !formData.selectedRFQ) ||
-                loading
-              }
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
-            >
-              <option value="">
-                {loading ? "Loading..." : "Select Vendor"}
-              </option>
-              {availableVendors.map((vendor) => (
-                <option key={vendor.id} value={vendor.id}>
-                  {vendor.name}
-                </option>
-              ))}
-            </select>
-            {loading &&
-              sourceType === "quotation" &&
-              formData.selectedVendor && (
-                <p className="text-sm text-blue-600 mt-1">
-                  Loading quotation details...
-                </p>
-              )}
           </div>
 
-          <div className="col-span-1 md:col-span-3">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Vendor Address
-            </label>
-            <input
-              type="text"
-              value={formData.vendorAddress}
-              readOnly
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-600"
-            />
-          </div>
-        </div>
-
-        {/* Vendor Details */}
-        <div>
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">
-            Vendor Details
-          </h3>
+          {/* Form Fields */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Bank Name
+                PO Date <span className="text-red-500">*</span>
               </label>
               <input
-                type="text"
-                value={formData.bankName}
-                readOnly
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-600"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                GST No
-              </label>
-              <input
-                type="text"
-                value={formData.gstNo}
-                readOnly
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-600"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Account Number
-              </label>
-              <input
-                type="text"
-                value={formData.accountNo}
-                readOnly
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-600"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                IFSC Code
-              </label>
-              <input
-                type="text"
-                value={formData.ifscCode}
-                readOnly
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-600"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                IGST (%)
-              </label>
-              <input
-                type="number"
-                value={formData.igst}
+                type="date"
+                value={formData.poDate}
                 onChange={(e) =>
-                  setFormData({ ...formData, igst: Number(e.target.value) })
+                  setFormData({ ...formData, poDate: e.target.value })
                 }
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                SGST (%)
-              </label>
-              <input
-                type="number"
-                value={formData.sgst}
-                onChange={(e) =>
-                  setFormData({ ...formData, sgst: Number(e.target.value) })
-                }
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
+            {sourceType === "quotation" ? (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Select RFQ <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={formData.selectedRFQ}
+                  onChange={(e) => handleRFQChange(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">Select RFQ</option>
+                  {rfqs.map((rfq) => (
+                    <option key={rfq.id} value={rfq.id}>
+                      {rfq.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ) : (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Select Indent <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={formData.selectedIndent}
+                  onChange={(e) => handleIndentChange(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">Select Indent</option>
+                  {indents.map((indent) => (
+                    <option key={indent.id} value={indent.id}>
+                      {indent.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                CGST (%)
+                Select Vendor <span className="text-red-500">*</span>
+              </label>
+              <select
+                value={formData.selectedVendor}
+                onChange={(e) => handleVendorChange(e.target.value)}
+                disabled={
+                  (sourceType === "quotation" && !formData.selectedRFQ) ||
+                  loading
+                }
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
+              >
+                <option value="">
+                  {loading ? "Loading..." : "Select Vendor"}
+                </option>
+                {availableVendors.map((vendor) => (
+                  <option key={vendor.id} value={vendor.id}>
+                    {vendor.name}
+                  </option>
+                ))}
+              </select>
+              {loading &&
+                sourceType === "quotation" &&
+                formData.selectedVendor && (
+                  <p className="text-sm text-blue-600 mt-1">
+                    Loading quotation details...
+                  </p>
+                )}
+            </div>
+
+            <div className="col-span-1 md:col-span-3">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Vendor Address
               </label>
               <input
-                type="number"
-                value={formData.cgst}
-                onChange={(e) =>
-                  setFormData({ ...formData, cgst: Number(e.target.value) })
-                }
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                type="text"
+                value={formData.vendorAddress}
+                readOnly
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-600"
               />
             </div>
           </div>
-        </div>
 
-        {/* Item Details */}
-        <div>
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 gap-4">
-            <h3 className="text-lg font-semibold text-gray-900">
-              Item Details
+          {/* Vendor Details */}
+          <div>
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">
+              Vendor Details
             </h3>
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Search items..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Bank Name
+                </label>
+                <input
+                  type="text"
+                  value={formData.bankName}
+                  readOnly
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-600"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  GST No
+                </label>
+                <input
+                  type="text"
+                  value={formData.gstNo}
+                  readOnly
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-600"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Account Number
+                </label>
+                <input
+                  type="text"
+                  value={formData.accountNo}
+                  readOnly
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-600"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  IFSC Code
+                </label>
+                <input
+                  type="text"
+                  value={formData.ifscCode}
+                  readOnly
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-600"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  IGST (%)
+                </label>
+                <input
+                  type="number"
+                  value={formData.igst}
+                  onChange={(e) =>
+                    setFormData({ ...formData, igst: Number(e.target.value) })
+                  }
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  SGST (%)
+                </label>
+                <input
+                  type="number"
+                  value={formData.sgst}
+                  onChange={(e) =>
+                    setFormData({ ...formData, sgst: Number(e.target.value) })
+                  }
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  CGST (%)
+                </label>
+                <input
+                  type="number"
+                  value={formData.cgst}
+                  onChange={(e) =>
+                    setFormData({ ...formData, cgst: Number(e.target.value) })
+                  }
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
             </div>
           </div>
 
-          <div className="overflow-hidden">
-            {filteredItems.length > 0 ? (
-              <div className="space-y-2">
-                {/* Accordion Parent Header Row - Hidden on mobile */}
-                <div className="hidden lg:grid grid-cols-12 gap-4 text-xs font-semibold text-gray-500 uppercase bg-gray-100 rounded-t-lg px-4 py-2">
-                  <div className="col-span-2">Item</div>
-                  <div className="col-span-1">HSN Code</div>
-                  <div className="col-span-1">UOM</div>
-                  <div className="col-span-1">Rate</div>
-                  <div className="col-span-1">Total Qty</div>
-                  <div className="col-span-2">Allocated Qty</div>
-                  <div className="col-span-2">Warehouses</div>
-                  <div className="col-span-1">Total Price</div>
-                  <div className="col-span-1">Actions</div>
-                </div>
-                {filteredItems.map((item) => {
-                  const itemId = item.item_id;
-                  const isExpanded = expandedItems.has(itemId);
-                  const allocations = warehouseAllocations[itemId] || [];
-                  const totalAllocatedQty = getTotalAllocatedQuantity(itemId);
-                  const remainingQty = item.quantity - totalAllocatedQty;
+          {/* Item Details */}
+          <div>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 gap-4">
+              <h3 className="text-lg font-semibold text-gray-900">
+                Item Details
+              </h3>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Search items..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            </div>
 
-                  // Get unique warehouses for bullet list
-                  const warehouseList = Array.from(
-                    new Set(
-                      allocations
-                        .map((allocation) => allocation.warehouse_name)
-                        .filter(Boolean)
-                    )
-                  );
+            <div className="overflow-hidden">
+              {filteredItems.length > 0 ? (
+                <div className="space-y-2">
+                  {/* Accordion Parent Header Row - Hidden on mobile */}
+                  <div className="hidden lg:grid grid-cols-12 gap-4 text-xs font-semibold text-gray-500 uppercase bg-gray-100 rounded-t-lg px-4 py-2">
+                    <div className="col-span-2">Item</div>
+                    <div className="col-span-1">HSN Code</div>
+                    <div className="col-span-1">UOM</div>
+                    <div className="col-span-1">Rate</div>
+                    <div className="col-span-1">Total Qty</div>
+                    <div className="col-span-2">Allocated Qty</div>
+                    <div className="col-span-2">Warehouses</div>
+                    <div className="col-span-1">Total Price</div>
+                    <div className="col-span-1">Actions</div>
+                  </div>
+                  {filteredItems.map((item) => {
+                    const itemId = item.item_id;
+                    const isExpanded = expandedItems.has(itemId);
+                    const allocations = warehouseAllocations[itemId] || [];
+                    const totalAllocatedQty = getTotalAllocatedQuantity(itemId);
+                    const remainingQty = item.quantity - totalAllocatedQty;
 
-                  return (
-                    <div
-                      key={itemId}
-                      className="border border-gray-200 rounded-lg"
-                    >
-                      {/* Parent Row (Accordion Header) - Mobile Responsive */}
-                      <div className="bg-gray-50 p-4 cursor-pointer">
-                        {/* Desktop View */}
-                        <div 
-                          className="hidden lg:grid grid-cols-12 gap-4 items-center text-sm"
-                          onClick={() => toggleItemExpansion(itemId)}
-                        >
-                          {/* Item (Double Width) */}
-                          <div className="col-span-2">
-                            <div className="font-bold text-gray-900">
-                              {item.itemName}
-                            </div>
-                            <div className="text-xs text-gray-600">
-                              {item.itemCode}
-                            </div>
-                          </div>
-                          {/* HSN Code */}
-                          <div className="col-span-1">
-                            <div className="font-medium text-gray-900">
-                              {item.hsnCode}
-                            </div>
-                          </div>
-                          {/* UOM */}
-                          <div className="col-span-1">
-                            <div className="font-medium text-gray-900">
-                              {item.uom}
-                            </div>
-                          </div>
-                          {/* Rate */}
-                          <div className="col-span-1">
-                            <input
-                              type="number"
-                              value={item.rate}
-                              onChange={(e) =>
-                                handleItemChange(
-                                  item.item_id,
-                                  "rate",
-                                  Number(e.target.value)
-                                )
-                              }
-                              onClick={(e) => e.stopPropagation()}
-                              className="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-                            />
-                          </div>
-                          {/* Total Quantity */}
-                          <div className="col-span-1">
-                            <input
-                              type="number"
-                              value={item.quantity}
-                              onChange={(e) =>
-                                handleItemChange(
-                                  item.item_id,
-                                  "quantity",
-                                  Number(e.target.value)
-                                )
-                              }
-                              onClick={(e) => e.stopPropagation()}
-                              className="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-                            />
-                          </div>
-                          {/* Allocated Quantity */}
-                          <div className="col-span-2">
-                            <div className="font-medium text-gray-900">
-                              <span className="text-green-600">
-                                {totalAllocatedQty}
-                              </span>
-                              <span className="text-gray-400 mx-1">/</span>
-                              <span>{item.quantity}</span>
-                              {remainingQty > 0 && (
-                                <span className="text-orange-600 text-xs ml-2">
-                                  ({remainingQty} remaining)
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                          {/* Warehouses (bullet list) */}
-                          <div className="col-span-2">
-                            <ul className="text-xs text-gray-500 list-disc ml-4">
-                              {warehouseList.length > 0 ? (
-                                warehouseList.map((w, i) => (
-                                  <li key={i}>{w}</li>
-                                ))
-                              ) : (
-                                <li className="text-gray-400">
-                                  No allocations
-                                </li>
-                              )}
-                            </ul>
-                          </div>
-                          {/* Total Price */}
-                          <div className="col-span-1">
-                            <div className="font-medium text-gray-900">
-                              ₹{item.totalPrice.toLocaleString()}
-                            </div>
-                          </div>
-                          {/* Action: Add warehouse allocation */}
-                          <div className="col-span-1">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                addWarehouseAllocation(itemId);
-                                if (!isExpanded) toggleItemExpansion(itemId);
-                              }}
-                              className="text-green-600 hover:text-green-800 border border-green-200 rounded px-2 py-1 text-sm font-medium"
-                              title="Add warehouse allocation"
-                            >
-                              +
-                            </button>
-                          </div>
-                        </div>
+                    // Get unique warehouses for bullet list
+                    const warehouseList = Array.from(
+                      new Set(
+                        allocations
+                          .map((allocation) => allocation.warehouse_name)
+                          .filter(Boolean)
+                      )
+                    );
 
-                        {/* Mobile View */}
-                        <div className="lg:hidden space-y-3">
-                          <div 
-                            className="flex justify-between items-start cursor-pointer"
+                    return (
+                      <div
+                        key={itemId}
+                        className="border border-gray-200 rounded-lg"
+                      >
+                        {/* Parent Row (Accordion Header) - Mobile Responsive */}
+                        <div className="bg-gray-50 p-4 cursor-pointer">
+                          {/* Desktop View */}
+                          <div
+                            className="hidden lg:grid grid-cols-12 gap-4 items-center text-sm"
                             onClick={() => toggleItemExpansion(itemId)}
                           >
-                            <div>
+                            {/* Item (Double Width) */}
+                            <div className="col-span-2">
                               <div className="font-bold text-gray-900">
                                 {item.itemName}
                               </div>
@@ -1545,19 +1421,20 @@ const determinePOStatus = (): 'PENDING' | 'DRAFT' => {
                                 {item.itemCode}
                               </div>
                             </div>
-                            <div className="text-right">
+                            {/* HSN Code */}
+                            <div className="col-span-1">
                               <div className="font-medium text-gray-900">
-                                ₹{item.totalPrice.toLocaleString()}
-                              </div>
-                              <div className="text-xs text-gray-500">
-                                HSN: {item.hsnCode}
+                                {item.hsnCode}
                               </div>
                             </div>
-                          </div>
-
-                          <div className="grid grid-cols-2 gap-3 text-sm">
-                            <div>
-                              <label className="block text-xs text-gray-500 mb-1">Rate</label>
+                            {/* UOM */}
+                            <div className="col-span-1">
+                              <div className="font-medium text-gray-900">
+                                {item.uom}
+                              </div>
+                            </div>
+                            {/* Rate */}
+                            <div className="col-span-1">
                               <input
                                 type="number"
                                 value={item.rate}
@@ -1568,11 +1445,12 @@ const determinePOStatus = (): 'PENDING' | 'DRAFT' => {
                                     Number(e.target.value)
                                   )
                                 }
+                                onClick={(e) => e.stopPropagation()}
                                 className="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
                               />
                             </div>
-                            <div>
-                              <label className="block text-xs text-gray-500 mb-1">Quantity</label>
+                            {/* Total Quantity */}
+                            <div className="col-span-1">
                               <input
                                 type="number"
                                 value={item.quantity}
@@ -1583,181 +1461,288 @@ const determinePOStatus = (): 'PENDING' | 'DRAFT' => {
                                     Number(e.target.value)
                                   )
                                 }
+                                onClick={(e) => e.stopPropagation()}
                                 className="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
                               />
                             </div>
-                          </div>
-
-                          <div className="flex justify-between items-center">
-                            <div className="text-sm">
-                              <span className="text-gray-500">Allocated: </span>
-                              <span className="text-green-600 font-medium">
-                                {totalAllocatedQty}
-                              </span>
-                              <span className="text-gray-400 mx-1">/</span>
-                              <span>{item.quantity}</span>
-                              {remainingQty > 0 && (
-                                <span className="text-orange-600 text-xs ml-2">
-                                  ({remainingQty} remaining)
+                            {/* Allocated Quantity */}
+                            <div className="col-span-2">
+                              <div className="font-medium text-gray-900">
+                                <span className="text-green-600">
+                                  {totalAllocatedQty}
                                 </span>
-                              )}
+                                <span className="text-gray-400 mx-1">/</span>
+                                <span>{item.quantity}</span>
+                                {remainingQty > 0 && (
+                                  <span className="text-orange-600 text-xs ml-2">
+                                    ({remainingQty} remaining)
+                                  </span>
+                                )}
+                              </div>
                             </div>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                addWarehouseAllocation(itemId);
-                                if (!isExpanded) toggleItemExpansion(itemId);
-                              }}
-                              className="text-green-600 hover:text-green-800 border border-green-200 rounded px-3 py-1 text-sm font-medium"
-                              title="Add warehouse allocation"
-                            >
-                              + Add Warehouse
-                            </button>
+                            {/* Warehouses (bullet list) */}
+                            <div className="col-span-2">
+                              <ul className="text-xs text-gray-500 list-disc ml-4">
+                                {warehouseList.length > 0 ? (
+                                  warehouseList.map((w, i) => (
+                                    <li key={i}>{w}</li>
+                                  ))
+                                ) : (
+                                  <li className="text-gray-400">
+                                    No allocations
+                                  </li>
+                                )}
+                              </ul>
+                            </div>
+                            {/* Total Price */}
+                            <div className="col-span-1">
+                              <div className="font-medium text-gray-900">
+                                ₹{item.totalPrice.toLocaleString()}
+                              </div>
+                            </div>
+                            {/* Action: Add warehouse allocation */}
+                            <div className="col-span-1">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  addWarehouseAllocation(itemId);
+                                  if (!isExpanded) toggleItemExpansion(itemId);
+                                }}
+                                className="text-green-600 hover:text-green-800 border border-green-200 rounded px-2 py-1 text-sm font-medium"
+                                title="Add warehouse allocation"
+                              >
+                                +
+                              </button>
+                            </div>
                           </div>
-                        </div>
-                      </div>
 
-                      {/* Accordion Child Rows (Expanded) */}
-                      {isExpanded && (
-                        <div className="bg-white border-t border-gray-200 py-4 lg:pl-[3.5rem] px-4">
-                          {/* Child Header */}
-                          <div className="bg-gray-100 p-2 rounded mb-2">
-                            <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 text-xs font-medium text-gray-500 uppercase">
-                              <div className="lg:col-span-2">Warehouse</div>
-                              <div className="lg:col-span-1">Quantity</div>
-                              <div className="lg:col-span-1">Actions</div>
-                            </div>
-                          </div>
-                          {/* Child Rows */}
-                          {allocations.length === 0 && (
-                            <div className="p-4 text-sm text-gray-400 text-center">
-                              No warehouse allocations yet. Click "Add Warehouse" to add.
-                            </div>
-                          )}
-                          {allocations.map((allocation) => (
+                          {/* Mobile View */}
+                          <div className="lg:hidden space-y-3">
                             <div
-                              key={allocation.id}
-                              className="p-2 border-t border-gray-100"
+                              className="flex justify-between items-start cursor-pointer"
+                              onClick={() => toggleItemExpansion(itemId)}
                             >
-                              <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 items-center text-sm">
-                                {/* Warehouse */}
-                                <div className="lg:col-span-2">
-                                  <label className="block text-xs text-gray-500 mb-1 lg:hidden">
-                                    Warehouse
-                                  </label>
-                                  <select
-                                    value={allocation.warehouse_id}
-                                    onChange={(e) =>
-                                      updateWarehouseAllocation(
-                                        itemId,
-                                        allocation.id,
-                                        "warehouse_id",
-                                        e.target.value
-                                      )
-                                    }
-                                    className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                  >
-                                    <option value="">Select Warehouse</option>
-                                    {warehouses.map((warehouse) => (
-                                      <option
-                                        key={warehouse.id}
-                                        value={warehouse.id}
-                                      >
-                                        {warehouse.name}
-                                      </option>
-                                    ))}
-                                  </select>
+                              <div>
+                                <div className="font-bold text-gray-900">
+                                  {item.itemName}
                                 </div>
-                                {/* Quantity */}
-                                <div className="lg:col-span-1">
-                                  <label className="block text-xs text-gray-500 mb-1 lg:hidden">
-                                    Quantity
-                                  </label>
-                                  <input
-                                    type="number"
-                                    value={allocation.qty}
-                                    onChange={(e) =>
-                                      updateWarehouseAllocation(
-                                        itemId,
-                                        allocation.id,
-                                        "qty",
-                                        parseInt(e.target.value) || 0
-                                      )
-                                    }
-                                    className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                    min="0"
-                                    max={item.quantity}
-                                  />
+                                <div className="text-xs text-gray-600">
+                                  {item.itemCode}
                                 </div>
-                                {/* Actions */}
-                                <div className="lg:col-span-1">
-                                  <button
-                                    onClick={() =>
-                                      removeWarehouseAllocation(
-                                        itemId,
-                                        allocation.id
-                                      )
-                                    }
-                                    className="w-full lg:w-auto text-red-600 hover:text-red-800 border border-red-200 rounded px-3 py-1 text-sm font-medium"
-                                    title="Remove warehouse allocation"
-                                  >
-                                    Remove
-                                  </button>
+                              </div>
+                              <div className="text-right">
+                                <div className="font-medium text-gray-900">
+                                  ₹{item.totalPrice.toLocaleString()}
+                                </div>
+                                <div className="text-xs text-gray-500">
+                                  HSN: {item.hsnCode}
                                 </div>
                               </div>
                             </div>
-                          ))}
+
+                            <div className="grid grid-cols-2 gap-3 text-sm">
+                              <div>
+                                <label className="block text-xs text-gray-500 mb-1">Rate</label>
+                                <input
+                                  type="number"
+                                  value={item.rate}
+                                  onChange={(e) =>
+                                    handleItemChange(
+                                      item.item_id,
+                                      "rate",
+                                      Number(e.target.value)
+                                    )
+                                  }
+                                  className="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-xs text-gray-500 mb-1">Quantity</label>
+                                <input
+                                  type="number"
+                                  value={item.quantity}
+                                  onChange={(e) =>
+                                    handleItemChange(
+                                      item.item_id,
+                                      "quantity",
+                                      Number(e.target.value)
+                                    )
+                                  }
+                                  className="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                />
+                              </div>
+                            </div>
+
+                            <div className="flex justify-between items-center">
+                              <div className="text-sm">
+                                <span className="text-gray-500">Allocated: </span>
+                                <span className="text-green-600 font-medium">
+                                  {totalAllocatedQty}
+                                </span>
+                                <span className="text-gray-400 mx-1">/</span>
+                                <span>{item.quantity}</span>
+                                {remainingQty > 0 && (
+                                  <span className="text-orange-600 text-xs ml-2">
+                                    ({remainingQty} remaining)
+                                  </span>
+                                )}
+                              </div>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  addWarehouseAllocation(itemId);
+                                  if (!isExpanded) toggleItemExpansion(itemId);
+                                }}
+                                className="text-green-600 hover:text-green-800 border border-green-200 rounded px-3 py-1 text-sm font-medium"
+                                title="Add warehouse allocation"
+                              >
+                                + Add Warehouse
+                              </button>
+                            </div>
+                          </div>
                         </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <div className="text-center py-8 text-gray-500 border border-gray-200 rounded-lg bg-gray-50">
-                <p>No items available</p>
-                <p className="text-sm mt-1">
-                  {sourceType === "quotation"
-                    ? "Select a vendor to load items from quotation"
-                    : "Items will be loaded based on indent selection"}
-                </p>
-              </div>
-            )}
+
+                        {/* Accordion Child Rows (Expanded) */}
+                        {isExpanded && (
+                          <div className="bg-white border-t border-gray-200 py-4 lg:pl-[3.5rem] px-4">
+                            {/* Child Header */}
+                            <div className="bg-gray-100 p-2 rounded mb-2">
+                              <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 text-xs font-medium text-gray-500 uppercase">
+                                <div className="lg:col-span-2">Warehouse</div>
+                                <div className="lg:col-span-1">Quantity</div>
+                                <div className="lg:col-span-1">Actions</div>
+                              </div>
+                            </div>
+                            {/* Child Rows */}
+                            {allocations.length === 0 && (
+                              <div className="p-4 text-sm text-gray-400 text-center">
+                                No warehouse allocations yet. Click "Add Warehouse" to add.
+                              </div>
+                            )}
+                            {allocations.map((allocation) => (
+                              <div
+                                key={allocation.id}
+                                className="p-2 border-t border-gray-100"
+                              >
+                                <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 items-center text-sm">
+                                  {/* Warehouse */}
+                                  <div className="lg:col-span-2">
+                                    <label className="block text-xs text-gray-500 mb-1 lg:hidden">
+                                      Warehouse
+                                    </label>
+                                    <select
+                                      value={allocation.warehouse_id}
+                                      onChange={(e) =>
+                                        updateWarehouseAllocation(
+                                          itemId,
+                                          allocation.id,
+                                          "warehouse_id",
+                                          e.target.value
+                                        )
+                                      }
+                                      className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                    >
+                                      <option value="">Select Warehouse</option>
+                                      {warehouses.map((warehouse) => (
+                                        <option
+                                          key={warehouse.id}
+                                          value={warehouse.id}
+                                        >
+                                          {warehouse.name}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  </div>
+                                  {/* Quantity */}
+                                  <div className="lg:col-span-1">
+                                    <label className="block text-xs text-gray-500 mb-1 lg:hidden">
+                                      Quantity
+                                    </label>
+                                    <input
+                                      type="number"
+                                      value={allocation.qty}
+                                      onChange={(e) =>
+                                        updateWarehouseAllocation(
+                                          itemId,
+                                          allocation.id,
+                                          "qty",
+                                          parseInt(e.target.value) || 0
+                                        )
+                                      }
+                                      className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                      min="0"
+                                      max={item.quantity}
+                                    />
+                                  </div>
+                                  {/* Actions */}
+                                  <div className="lg:col-span-1">
+                                    <button
+                                      onClick={() =>
+                                        removeWarehouseAllocation(
+                                          itemId,
+                                          allocation.id
+                                        )
+                                      }
+                                      className="w-full lg:w-auto text-red-600 hover:text-red-800 border border-red-200 rounded px-3 py-1 text-sm font-medium"
+                                      title="Remove warehouse allocation"
+                                    >
+                                      Remove
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="text-center py-8 text-gray-500 border border-gray-200 rounded-lg bg-gray-50">
+                  <p>No items available</p>
+                  <p className="text-sm mt-1">
+                    {sourceType === "quotation"
+                      ? "Select a vendor to load items from quotation"
+                      : "Items will be loaded based on indent selection"}
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Total Amount */}
+          <div className="bg-gray-50 rounded-lg p-4">
+            <div className="flex justify-between items-center">
+              <span className="text-lg font-semibold text-gray-900">
+                Total Amount:
+              </span>
+              <span className="text-2xl font-bold text-gray-900">
+                ₹{totalAmount.toLocaleString()}
+              </span>
+            </div>
           </div>
         </div>
 
-        {/* Total Amount */}
-        <div className="bg-gray-50 rounded-lg p-4">
-          <div className="flex justify-between items-center">
-            <span className="text-lg font-semibold text-gray-900">
-              Total Amount:
-            </span>
-            <span className="text-2xl font-bold text-gray-900">
-              ₹{totalAmount.toLocaleString()}
-            </span>
-          </div>
+        {/* Fixed Footer */}
+        <div className="flex items-center justify-end space-x-3 p-6 border-t border-gray-200 bg-white">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={loading}
+            className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {loading ? "Saving..." : "SAVE"}
+          </button>
         </div>
-      </div>
-
-      {/* Fixed Footer */}
-      <div className="flex items-center justify-end space-x-3 p-6 border-t border-gray-200 bg-white">
-        <button
-          onClick={onClose}
-          className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-        >
-          Cancel
-        </button>
-        <button
-          onClick={handleSave}
-          disabled={loading}
-          className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {loading ? "Saving..." : "SAVE"}
-        </button>
       </div>
     </div>
-  </div>
-);
+  );
 }
 
 export default CreatePOModal;
