@@ -869,7 +869,27 @@ const EditPOModal: React.FC<EditPOModalProps> = ({ isOpen, onClose, po }) => {
     0
   );
 
+  const determinePOStatus = (): 'PENDING' | 'DRAFT' => {
+    // Get all unique item IDs from the PO data
+    const allItemIds = Object.keys(groupedItems);
+    
+    // Check if all items have at least one warehouse allocation with valid data
+    const allItemsAllocated = allItemIds.every((itemId) => {
+      const allocations = warehouseAllocations[itemId] || [];
+      // Item is considered allocated if it has at least one valid allocation
+      return allocations.some(allocation => 
+        allocation.warehouse_id && 
+        allocation.qty > 0 && 
+        !allocation.isNew // Only count saved allocations, not new unsaved ones
+      );
+    });
+
+    return allItemsAllocated ? 'PENDING' : 'DRAFT';
+  };
+  
   const handleSave = async () => {
+    const poStatus = determinePOStatus();
+
     const updateData = {
       bank_name: formData.bankName,
       gst: formData.gstNo,
@@ -879,6 +899,7 @@ const EditPOModal: React.FC<EditPOModalProps> = ({ isOpen, onClose, po }) => {
       sgst: formData.sgst,
       cgst: formData.cgst,
       total_amount: totalAmount,
+      po_status: poStatus,
     };
 
     console.log("Updating PO:", updateData);
