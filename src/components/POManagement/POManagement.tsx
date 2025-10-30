@@ -146,7 +146,7 @@ const POManagement: React.FC = () => {
           vendorName: po.vendor_details.business_name || "N/A", // From joined vendor table
           contactNo: po.vendor_details.contact_no || "N/A", // From joined vendor table
           poDate: po.po_date
-            ? new Date(po.po_date).toISOString().split("T")[0]
+            ? new Date(po.po_date).toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" })
             : "",
           poAmount: po.total_amount || 0,
           approvedBy: po.approved_by || "",

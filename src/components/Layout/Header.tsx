@@ -24,7 +24,7 @@ const Header: React.FC = () => {
           <button
             // onClick={() => window.history.back()}
             onClick={() => (window.location.href = `${import.meta.env.VITE_AUTH_UI_BASE_URL}/dashboard`)}
-            className="relative text-gray-400 hover:text-gray-700"
+            className="relative text-gray-600 hover:text-gray-700"
           >
             <Home className="h-6 w-6" />
           </button>
@@ -33,8 +33,8 @@ const Header: React.FC = () => {
             <Bell className="w-5 h-5" />
             <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full"></span>
           </button> */}
-          <NotificationButton/>
-          
+          <NotificationButton />
+
           <div className="flex items-center space-x-3 border-l pl-4">
             <div className="text-right">
               <p className="text-sm font-medium text-gray-900">

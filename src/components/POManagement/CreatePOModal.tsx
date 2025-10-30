@@ -28,7 +28,7 @@ interface POItem {
   quantity: number;
   totalPrice: number;
   cs_id?: string;
-  required_qty?: number; // Required quantity for the item
+  required_qty: number; // Required quantity for the item
 }
 
 interface WarehouseAllocation {
@@ -312,7 +312,8 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
             quantity: parseInt(item.selected_qty) || 0,
             totalPrice:
               (parseFloat(item.rate) || 0) * (parseInt(item.selected_qty) || 0),
-            cs_id: item.cs_id || "", // Capture CS ID for updating is_po_generated status
+            cs_id: item.cs_id || "",
+            required_qty: parseInt(item.required_qty) || 0,
           }));
           setItems(mappedItems);
           console.log("Fetched mapped CS Items:", mappedItems);
@@ -467,19 +468,19 @@ const CreatePOModal: React.FC<CreatePOModalProps> = ({ isOpen, onClose }) => {
       })
     );
   };
-// Add this helper function before the handleSave function
-const determinePOStatus = (): 'PENDING' | 'DRAFT' => {
-  // Check if all items have at least one warehouse allocation
-  const allItemsAllocated = items.every((item) => {
-    const allocations = warehouseAllocations[item.item_id] || [];
-    // Item is considered allocated if it has at least one valid allocation
-    return allocations.some(allocation => 
-      allocation.warehouse_id && allocation.qty > 0
-    );
-  });
+  // Add this helper function before the handleSave function
+  const determinePOStatus = (): 'PENDING' | 'DRAFT' => {
+    // Check if all items have at least one warehouse allocation
+    const allItemsAllocated = items.every((item) => {
+      const allocations = warehouseAllocations[item.item_id] || [];
+      // Item is considered allocated if it has at least one valid allocation
+      return allocations.some(allocation =>
+        allocation.warehouse_id && allocation.qty > 0
+      );
+    });
 
-  return allItemsAllocated ? 'PENDING' : 'DRAFT';
-};
+    return allItemsAllocated ? 'PENDING' : 'DRAFT';
+  };
   // Warehouse allocation functions
   const toggleItemExpansion = (itemId: string) => {
     setExpandedItems((prev) => {
@@ -514,9 +515,9 @@ const determinePOStatus = (): 'PENDING' | 'DRAFT' => {
     field: "warehouse_id" | "qty",
     value: string | number
   ) => {
-    setWarehouseAllocations((prev) => ({
-      ...prev,
-      [itemId]: (prev[itemId] || []).map((allocation) => {
+    setWarehouseAllocations((prev) => {
+      const current = prev[itemId] || [];
+      const updated = current.map((allocation) => {
         if (allocation.id === allocationId) {
           const updatedAllocation = { ...allocation, [field]: value };
           if (field === "warehouse_id") {
@@ -526,17 +527,43 @@ const determinePOStatus = (): 'PENDING' | 'DRAFT' => {
           return updatedAllocation;
         }
         return allocation;
-      }),
-    }));
+      });
+
+      // After updating allocations, recalculate and update the corresponding item's totalPrice
+      setItems((prevItems) =>
+        prevItems.map((item) => {
+          if (item.item_id === itemId) {
+            const allocatedSum = updated.reduce((s, a) => s + Number(a.qty || 0), 0);
+            const effectiveQty = allocatedSum > 0 ? allocatedSum : item.quantity;
+            return { ...item, totalPrice: item.rate * effectiveQty };
+          }
+          return item;
+        })
+      );
+
+      return { ...prev, [itemId]: updated };
+    });
   };
 
   const removeWarehouseAllocation = (itemId: string, allocationId: string) => {
-    setWarehouseAllocations((prev) => ({
-      ...prev,
-      [itemId]: (prev[itemId] || []).filter(
-        (allocation) => allocation.id !== allocationId
-      ),
-    }));
+    setWarehouseAllocations((prev) => {
+      const current = prev[itemId] || [];
+      const updated = current.filter((allocation) => allocation.id !== allocationId);
+
+      // After removal, update the item's totalPrice based on remaining allocations
+      setItems((prevItems) =>
+        prevItems.map((item) => {
+          if (item.item_id === itemId) {
+            const allocatedSum = updated.reduce((s, a) => s + Number(a.qty || 0), 0);
+            const effectiveQty = allocatedSum > 0 ? allocatedSum : item.quantity;
+            return { ...item, totalPrice: item.rate * effectiveQty };
+          }
+          return item;
+        })
+      );
+
+      return { ...prev, [itemId]: updated };
+    });
   };
 
   const getTotalAllocatedQuantity = (itemId: string): number => {
@@ -654,6 +681,7 @@ const determinePOStatus = (): 'PENDING' | 'DRAFT' => {
 
       items.forEach((item) => {
         const allocations = warehouseAllocations[item.item_id] || [];
+        console.log("Allocations for item:", item);
 
         if (allocations.length > 0) {
           // Create separate PO detail records for each warehouse allocation
@@ -668,7 +696,7 @@ const determinePOStatus = (): 'PENDING' | 'DRAFT' => {
                 notes: "",
                 qs_approved: false,
                 warehouse_id: allocation.warehouse_id,
-                required_qty: requiredItems,
+                required_qty: item.required_qty,
               });
             }
           });
@@ -683,6 +711,7 @@ const determinePOStatus = (): 'PENDING' | 'DRAFT' => {
             notes: "",
             qs_approved: false,
             warehouse_id: null,
+            required_qty: item.required_qty,
           });
         }
       });
@@ -818,7 +847,7 @@ const determinePOStatus = (): 'PENDING' | 'DRAFT' => {
           const poNumber = createdPO?.po_number || poId || 'PO';
           const selectedVendorData = vendors.find((vendor) => vendor.id === formData.selectedVendor);
           const vendorName = selectedVendorData?.name || 'Unknown Vendor';
-          
+
           await sendNotification({
             receiver_ids: ['admin'],
             title: `Purchase Order Created: ${poNumber}`,
@@ -1012,7 +1041,7 @@ const determinePOStatus = (): 'PENDING' | 'DRAFT' => {
               const poNumber = poResponse.data.data?.po_number || poId || 'PO';
               const selectedVendorData = vendors.find((vendor) => vendor.id === formData.selectedVendor);
               const vendorName = selectedVendorData?.name || 'Unknown Vendor';
-              
+
               await sendNotification({
                 receiver_ids: ['admin'],
                 title: `Purchase Order Created: ${poNumber}`,
@@ -1069,7 +1098,7 @@ const determinePOStatus = (): 'PENDING' | 'DRAFT' => {
               const poNumber = response.data.data?.po_number || response.data.data?.id || 'PO';
               const selectedVendorData = vendors.find((vendor) => vendor.id === formData.selectedVendor);
               const vendorName = selectedVendorData?.name || 'Unknown Vendor';
-              
+
               await sendNotification({
                 receiver_ids: ['admin'],
                 title: `Purchase Order Created: ${poNumber}`,

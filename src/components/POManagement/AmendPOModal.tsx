@@ -88,6 +88,7 @@ interface ApiPOData {
     rate: string;
     warehouse_id: string;
     warehouse_code: string;
+    required_qty: string;
     item_details: {
       id: string;
       item_code: string;
@@ -121,6 +122,7 @@ interface AmendableItem {
   uom: string;
   rate: number;
   quantity: number;
+  requiredQty?: number;
   totalPrice: number;
   selected: boolean;
   isEditing: boolean;
@@ -366,17 +368,17 @@ const AmendPOModal: React.FC<AmendPOModalProps> = ({ isOpen, onClose, po }) => {
     // Get additional allocations
     const allocations = warehouseAllocations[itemId] || [];
     const additionalAllocatedQty = allocations.reduce((sum, allocation) => sum + allocation.qty, 0);
-    
+
     // Get existing allocations from API data
     const itemGroup = groupedItems[itemId];
     const existingAllocatedQty = itemGroup ? itemGroup.entries.reduce(
       (sum, entry) => {
         const qty = localWarehouseQty[entry.id] ?? parseFloat(entry.qty || "0");
         return sum + qty;
-      }, 
+      },
       0
     ) : 0;
-    
+
     return existingAllocatedQty + additionalAllocatedQty;
   };
 
@@ -510,10 +512,10 @@ const AmendPOModal: React.FC<AmendPOModalProps> = ({ isOpen, onClose, po }) => {
   ) => {
     // Check if this is a new item with no warehouse entries
     const currentItem = items.find((item) => item.id === itemId);
-    
+
     let totalQty = 0;
     let rate = 0;
-    
+
     if (entries.length === 0 && currentItem?.isNewItem) {
       // For new items with no warehouse entries, use the item's original quantity
       totalQty = currentItem.quantity;
@@ -600,6 +602,7 @@ const AmendPOModal: React.FC<AmendPOModalProps> = ({ isOpen, onClose, po }) => {
       rate: Number(item.rate) || 0,
       quantity: Number(item.qty) || 0,
       totalPrice: (Number(item.rate) || 0) * (Number(item.qty) || 0),
+      requiredQty: Number(item.required_qty) || 0,
       selected: false,
       isEditing: false,
     }));
@@ -675,7 +678,7 @@ const AmendPOModal: React.FC<AmendPOModalProps> = ({ isOpen, onClose, po }) => {
   const handleRemoveItem = (itemId: string) => {
     // Check if it's a new item or existing item
     const currentItem = items.find(item => item.id === itemId);
-    
+
     if (currentItem?.isNewItem) {
       // For new items, remove from items state
       setItems((prev) => prev.filter(item => item.id !== itemId));
@@ -691,7 +694,7 @@ const AmendPOModal: React.FC<AmendPOModalProps> = ({ isOpen, onClose, po }) => {
         });
       }
     }
-    
+
     // Clean up related states
     setEditingRates((prev) => {
       const newSet = new Set(prev);
@@ -898,8 +901,7 @@ const AmendPOModal: React.FC<AmendPOModalProps> = ({ isOpen, onClose, po }) => {
 
         try {
           await axios.post(
-            `${
-              import.meta.env.VITE_API_BASE_URL
+            `${import.meta.env.VITE_API_BASE_URL
             }/purchase-order-warehouse/bulk`,
             warehousePayload
           );
@@ -914,7 +916,7 @@ const AmendPOModal: React.FC<AmendPOModalProps> = ({ isOpen, onClose, po }) => {
       try {
         const amendedPONumber = createdPO?.po_number || poId || 'Amended PO';
         const selectedItemsCount = Object.keys(groupedItems).length;
-        
+
         await sendNotification({
           receiver_ids: ['admin'],
           title: `Purchase Order Amended: ${amendedPONumber}`,
@@ -1103,8 +1105,7 @@ const AmendPOModal: React.FC<AmendPOModalProps> = ({ isOpen, onClose, po }) => {
 
         try {
           await axios.post(
-            `${
-              import.meta.env.VITE_API_BASE_URL
+            `${import.meta.env.VITE_API_BASE_URL
             }/purchase-order-warehouse/bulk`,
             warehousePayload
           );
@@ -1122,7 +1123,7 @@ const AmendPOModal: React.FC<AmendPOModalProps> = ({ isOpen, onClose, po }) => {
         try {
           const amendedPONumber = poResponse.data.data?.po_number || poId || 'Amended PO';
           const selectedItemsCount = Object.keys(groupedItems).length;
-          
+
           await sendNotification({
             receiver_ids: ['admin'],
             title: `Purchase Order Amended: ${amendedPONumber}`,
@@ -1574,7 +1575,7 @@ const AmendPOModal: React.FC<AmendPOModalProps> = ({ isOpen, onClose, po }) => {
                                             <span className="text-gray-400 mx-1">
                                               /
                                             </span>
-                                            <span>{totalQty}</span>
+                                            <span>{items.find((i) => i.id === itemId)?.requiredQty || 0}</span>
                                             {remainingQty > 0 && (
                                               <span className="text-orange-600 ml-2">
                                                 ({remainingQty} remaining)
@@ -1677,135 +1678,135 @@ const AmendPOModal: React.FC<AmendPOModalProps> = ({ isOpen, onClose, po }) => {
                                                   parseFloat(entry?.rate || "0");
                                                 const entryTotal =
                                                   currentRate * currentQty;
-                                              const isEditingQty =
-                                                editingWarehouseQty.has(
-                                                  entry.id
-                                                );
+                                                const isEditingQty =
+                                                  editingWarehouseQty.has(
+                                                    entry.id
+                                                  );
 
-                                              return (
-                                                <tr
-                                                  key={entry.id}
-                                                  className="text-sm border-t border-gray-200"
-                                                >
-                                                  <td className="py-2 px-3 text-gray-600">
-                                                    {getWarehouseName(
-                                                      entry.warehouse_id,
-                                                      entry.warehouse_code
-                                                    )}
-                                                  </td>
-                                                  <td className="py-2 px-3 text-gray-600">
-                                                    {isEditingQty ? (
-                                                      <input
-                                                        type="number"
-                                                        value={currentQty}
-                                                        onChange={(e) => {
-                                                          const newQty =
-                                                            parseFloat(
-                                                              e.target.value
-                                                            ) || 0;
-                                                          setLocalWarehouseQty(
-                                                            (prev) => ({
-                                                              ...prev,
-                                                              [entry.id]:
-                                                                newQty,
-                                                            })
-                                                          );
-                                                        }}
-                                                        className="w-16 px-1 py-1 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500"
-                                                        min="0"
-                                                      />
-                                                    ) : (
-                                                      currentQty
-                                                    )}
-                                                  </td>
-                                                  <td className="py-2 px-3 text-gray-600">
-                                                    ₹
-                                                    {currentRate.toLocaleString()}
-                                                  </td>
-                                                  <td className="py-2 px-3 text-gray-600">
-                                                    ₹
-                                                    {entryTotal.toLocaleString()}
-                                                  </td>
-                                                  <td className="py-2 px-3">
-                                                    {isEditingQty ? (
-                                                      <div className="flex space-x-1">
-                                                        <button
-                                                          onClick={() =>
-                                                            saveWarehouseQuantity(
-                                                              entry.id
-                                                            )
-                                                          }
-                                                          className="px-2 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700"
-                                                        >
-                                                          Save
-                                                        </button>
-                                                        <button
-                                                          onClick={() => {
-                                                            setEditingWarehouseQty(
-                                                              (prev) => {
-                                                                const newSet =
-                                                                  new Set(prev);
-                                                                newSet.delete(
-                                                                  entry.id
-                                                                );
-                                                                return newSet;
-                                                              }
-                                                            );
-                                                            setLocalWarehouseQty(
-                                                              (prev) => {
-                                                                const newQty = {
-                                                                  ...prev,
-                                                                };
-                                                                delete newQty[
-                                                                  entry.id
-                                                                ];
-                                                                return newQty;
-                                                              }
-                                                            );
-                                                          }}
-                                                          className="px-2 py-1 bg-gray-400 text-white text-xs rounded hover:bg-gray-500"
-                                                        >
-                                                          Cancel
-                                                        </button>
-                                                      </div>
-                                                    ) : (
-                                                      <div className="flex space-x-1">
-                                                        <button
-                                                          onClick={() => {
-                                                            setEditingWarehouseQty(
-                                                              (prev) =>
-                                                                new Set(prev).add(
-                                                                  entry.id
-                                                                )
-                                                            );
+                                                return (
+                                                  <tr
+                                                    key={entry.id}
+                                                    className="text-sm border-t border-gray-200"
+                                                  >
+                                                    <td className="py-2 px-3 text-gray-600">
+                                                      {getWarehouseName(
+                                                        entry.warehouse_id,
+                                                        entry.warehouse_code
+                                                      )}
+                                                    </td>
+                                                    <td className="py-2 px-3 text-gray-600">
+                                                      {isEditingQty ? (
+                                                        <input
+                                                          type="number"
+                                                          value={currentQty}
+                                                          onChange={(e) => {
+                                                            const newQty =
+                                                              parseFloat(
+                                                                e.target.value
+                                                              ) || 0;
                                                             setLocalWarehouseQty(
                                                               (prev) => ({
                                                                 ...prev,
                                                                 [entry.id]:
-                                                                  parseFloat(
-                                                                    entry?.qty ||
-                                                                      "0"
-                                                                  ),
+                                                                  newQty,
                                                               })
                                                             );
                                                           }}
-                                                          className="px-2 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700"
-                                                        >
-                                                          Edit
-                                                        </button>
-                                                        <button
-                                                          onClick={() => removeCurrentWarehouseEntry(entry.id)}
-                                                          className="px-2 py-1 bg-red-600 text-white text-xs rounded hover:bg-red-700"
-                                                          title="Remove warehouse allocation"
-                                                        >
-                                                          Remove
-                                                        </button>
-                                                      </div>
-                                                    )}
-                                                  </td>
-                                                </tr>
-                                              );
-                                            })
+                                                          className="w-16 px-1 py-1 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500"
+                                                          min="0"
+                                                        />
+                                                      ) : (
+                                                        currentQty
+                                                      )}
+                                                    </td>
+                                                    <td className="py-2 px-3 text-gray-600">
+                                                      ₹
+                                                      {currentRate.toLocaleString()}
+                                                    </td>
+                                                    <td className="py-2 px-3 text-gray-600">
+                                                      ₹
+                                                      {entryTotal.toLocaleString()}
+                                                    </td>
+                                                    <td className="py-2 px-3">
+                                                      {isEditingQty ? (
+                                                        <div className="flex space-x-1">
+                                                          <button
+                                                            onClick={() =>
+                                                              saveWarehouseQuantity(
+                                                                entry.id
+                                                              )
+                                                            }
+                                                            className="px-2 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700"
+                                                          >
+                                                            Save
+                                                          </button>
+                                                          <button
+                                                            onClick={() => {
+                                                              setEditingWarehouseQty(
+                                                                (prev) => {
+                                                                  const newSet =
+                                                                    new Set(prev);
+                                                                  newSet.delete(
+                                                                    entry.id
+                                                                  );
+                                                                  return newSet;
+                                                                }
+                                                              );
+                                                              setLocalWarehouseQty(
+                                                                (prev) => {
+                                                                  const newQty = {
+                                                                    ...prev,
+                                                                  };
+                                                                  delete newQty[
+                                                                    entry.id
+                                                                  ];
+                                                                  return newQty;
+                                                                }
+                                                              );
+                                                            }}
+                                                            className="px-2 py-1 bg-gray-400 text-white text-xs rounded hover:bg-gray-500"
+                                                          >
+                                                            Cancel
+                                                          </button>
+                                                        </div>
+                                                      ) : (
+                                                        <div className="flex space-x-1">
+                                                          <button
+                                                            onClick={() => {
+                                                              setEditingWarehouseQty(
+                                                                (prev) =>
+                                                                  new Set(prev).add(
+                                                                    entry.id
+                                                                  )
+                                                              );
+                                                              setLocalWarehouseQty(
+                                                                (prev) => ({
+                                                                  ...prev,
+                                                                  [entry.id]:
+                                                                    parseFloat(
+                                                                      entry?.qty ||
+                                                                      "0"
+                                                                    ),
+                                                                })
+                                                              );
+                                                            }}
+                                                            className="px-2 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700"
+                                                          >
+                                                            Edit
+                                                          </button>
+                                                          <button
+                                                            onClick={() => removeCurrentWarehouseEntry(entry.id)}
+                                                            className="px-2 py-1 bg-red-600 text-white text-xs rounded hover:bg-red-700"
+                                                            title="Remove warehouse allocation"
+                                                          >
+                                                            Remove
+                                                          </button>
+                                                        </div>
+                                                      )}
+                                                    </td>
+                                                  </tr>
+                                                );
+                                              })
                                             ) : (
                                               <tr>
                                                 <td colSpan={5} className="py-4 text-center text-gray-500 text-sm">
@@ -1932,7 +1933,7 @@ const AmendPOModal: React.FC<AmendPOModalProps> = ({ isOpen, onClose, po }) => {
                                 )}
                               </div>
                             );
-                          } 
+                          }
                         )}
                       </div>
                     ) : (
@@ -2090,7 +2091,7 @@ const AmendPOModal: React.FC<AmendPOModalProps> = ({ isOpen, onClose, po }) => {
                               type="checkbox"
                               checked={
                                 selectedItems.size ===
-                                  filteredAvailableItems.length &&
+                                filteredAvailableItems.length &&
                                 filteredAvailableItems.length > 0
                               }
                               onChange={handleSelectAllItems}
@@ -2118,9 +2119,8 @@ const AmendPOModal: React.FC<AmendPOModalProps> = ({ isOpen, onClose, po }) => {
                         {filteredAvailableItems.map((item) => (
                           <tr
                             key={item.id}
-                            className={`border-t border-gray-200 hover:bg-gray-50 cursor-pointer ${
-                              selectedItems.has(item.id) ? "bg-blue-50" : ""
-                            }`}
+                            className={`border-t border-gray-200 hover:bg-gray-50 cursor-pointer ${selectedItems.has(item.id) ? "bg-blue-50" : ""
+                              }`}
                             onClick={() => handleItemSelection(item.id)}
                           >
                             <td className="py-3 px-4">
