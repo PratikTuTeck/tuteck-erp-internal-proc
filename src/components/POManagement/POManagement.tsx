@@ -143,8 +143,8 @@ const POManagement: React.FC = () => {
           parentPO: po.reference_purchase_id
             ? `PO-REF-${po.reference_purchase_id.slice(0, 8)}`
             : undefined,
-          vendorName: po.vendor_details.business_name || "N/A", // From joined vendor table
-          contactNo: po.vendor_details.contact_no || "N/A", // From joined vendor table
+          vendorName: po.vendor_details?.business_name || "N/A", // From joined vendor table
+          contactNo: po.vendor_details?.contact_no || "N/A", // From joined vendor table
           poDate: po.po_date
             ? new Date(po.po_date).toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" })
             : "",
