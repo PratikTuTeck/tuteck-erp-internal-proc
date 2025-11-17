@@ -626,15 +626,15 @@ const CreateRFQModal: React.FC<CreateRFQModalProps> = ({ isOpen, onClose }) => {
                           </td>
                           <td className="py-3 px-4 text-gray-600 border-b">
                             <div className="flex flex-wrap gap-1">
-                              {item.sourceIndents.map((indent) => (
-                                <span
-                                  key={indent.id}
-                                  className="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs"
-                                  title={`Indent ID: ${indent.id}`}
-                                >
-                                  {indent.number}
-                                </span>
-                              ))}
+                            {[...new Map(item.sourceIndents.map(i => [i.id, i])).values()].map((indent) => (
+                              <span
+                                key={indent.id}
+                                className="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs"
+                                title={`Indent ID: ${indent.id}`}
+                              >
+                                {indent.number}
+                              </span>
+                            ))}
                             </div>
                           </td>
                           <td className="py-3 px-4 text-gray-600 border-b">
