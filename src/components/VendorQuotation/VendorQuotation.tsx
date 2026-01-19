@@ -724,10 +724,10 @@ const VendorQuotation: React.FC = () => {
         <div className="border-b border-gray-200">
           <div className="flex space-x-8 px-6">
             {[
-              { id: "rfq", label: "RFQ Management" },
-              { id: "quotation", label: "Vendor Quotation" },
-              { id: "generate-cs", label: "Generate CS" },
-              { id: "approve-cs", label: "Approve CS" },
+              { id: "rfq", label: "RFQ Management",name: "RFQ Generation" },
+              { id: "quotation", label: "Vendor Quotation",name: "Vendor Quotation" },
+              { id: "generate-cs", label: "Generate CS",name: "Commercial Comparison" },
+              { id: "approve-cs", label: "Approve CS",name: "Approve Commercial Comparison" },
             ].filter((item) => hasAccess("Vendor Quotation Management", item.label)).map((tab) => (
               <button
                 key={tab.id}
@@ -738,7 +738,7 @@ const VendorQuotation: React.FC = () => {
                     : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
                 }`}
               >
-                {tab.label}
+                {tab.name}
               </button>
             ))}
           </div>

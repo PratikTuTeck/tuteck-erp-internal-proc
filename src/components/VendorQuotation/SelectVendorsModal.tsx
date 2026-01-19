@@ -100,7 +100,7 @@ const SelectVendorsModal: React.FC<SelectVendorsModalProps> = ({
         <div className="flex items-center justify-between p-6 border-b border-gray-200">
           <div>
             <h2 className="text-xl font-semibold text-gray-900">
-              Select Vendors for Item
+              Technical Bid Evaluation
             </h2>
             <p className="text-sm text-gray-600 mt-1">Item: {itemName}</p>
           </div>
