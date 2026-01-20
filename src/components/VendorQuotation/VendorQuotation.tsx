@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Plus, Search, Eye, Edit, CheckCircle, Filter, FileText  } from "lucide-react";
+import { Plus, Search, Eye, Edit, CheckCircle, Filter, FileText } from "lucide-react";
 import axios from "axios";
 import CreateRFQModal from "./CreateRFQModal";
 import ApproveRFQModal from "./ApproveRFQModal";
@@ -58,7 +58,7 @@ const VendorQuotation: React.FC = () => {
   const [quotations, setQuotations] = useState<VendorQuotation[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
- const { hasAccess } = useAuth();
+  const { hasAccess } = useAuth();
 
   const [showViewRFQ, setShowViewRFQ] = useState(false); // Add state for ViewRFQModal
 
@@ -77,8 +77,7 @@ const VendorQuotation: React.FC = () => {
     setError("");
     try {
       const response = await axios.get(
-        `${
-          import.meta.env.VITE_API_BASE_URL
+        `${import.meta.env.VITE_API_BASE_URL
         }/rfq/filter?approval_status=APPROVED`
       );
       if (response.data?.data) {
@@ -298,7 +297,7 @@ const VendorQuotation: React.FC = () => {
     }
   };
 
-   const handleViewRFQ = async (rfq: RFQ) => {
+  const handleViewRFQ = async (rfq: RFQ) => {
     try {
       setLoading(true);
       const response = await axios.get(
@@ -346,11 +345,10 @@ const VendorQuotation: React.FC = () => {
           <button
             onClick={() => setShowCreateRFQ(true)}
             disabled={loading}
-            className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors ${
-              loading
-                ? "bg-gray-400 text-white cursor-not-allowed"
-                : "bg-blue-600 text-white hover:bg-blue-700"
-            }`}
+            className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors ${loading
+              ? "bg-gray-400 text-white cursor-not-allowed"
+              : "bg-blue-600 text-white hover:bg-blue-700"
+              }`}
           >
             <Plus className="w-4 h-4" />
             <span>Create RFQ</span>
@@ -498,11 +496,10 @@ const VendorQuotation: React.FC = () => {
                               <button
                                 onClick={() => handleApproveRFQ(rfq)}
                                 disabled={loading}
-                                className={`p-1 transition-colors ${
-                                  loading
-                                    ? "text-gray-400 cursor-not-allowed"
-                                    : "text-green-600 hover:text-green-800"
-                                }`}
+                                className={`p-1 transition-colors ${loading
+                                  ? "text-gray-400 cursor-not-allowed"
+                                  : "text-green-600 hover:text-green-800"
+                                  }`}
                                 title="Approve"
                               >
                                 {loading ? (
@@ -546,11 +543,10 @@ const VendorQuotation: React.FC = () => {
           <button
             onClick={() => setShowQuotationEntry(true)}
             disabled={!selectedRFQForQuotation}
-            className={`flex items-center space-x-2 px-4 py-2 rounded-lg font-medium transition-colors ${
-              selectedRFQForQuotation
-                ? "bg-green-600 text-white hover:bg-green-700"
-                : "bg-gray-300 text-gray-500 cursor-not-allowed"
-            }`}
+            className={`flex items-center space-x-2 px-4 py-2 rounded-lg font-medium transition-colors ${selectedRFQForQuotation
+              ? "bg-green-600 text-white hover:bg-green-700"
+              : "bg-gray-300 text-gray-500 cursor-not-allowed"
+              }`}
           >
             <Plus className="w-4 h-4" />
             <span>Vendor Quotation Entry</span>
@@ -659,30 +655,30 @@ const VendorQuotation: React.FC = () => {
                               quotation.status
                             )}`}
                           >
-                             {quotation.status.charAt(0).toUpperCase() +
-                          quotation.status.slice(1)}
-                      </span>
-                    </td>
-                    <td className="py-4 px-4">
-                      <div className="flex items-center justify-center space-x-2">
-                        <button
-                          onClick={() => handleViewQuotation(quotation)}
-                          className="p-1 text-blue-600 hover:text-blue-800 transition-colors"
-                          title="View"
-                        >
-                          <Eye className="w-4 h-4" />
-                        </button>
-                        <button
-                          className="p-1 text-gray-600 hover:text-gray-800 transition-colors"
-                          title="Edit"
-                        >
-                          <Edit className="w-4 h-4" />
-                        </button>
-                        {quotation.status === "pending" && (
-                          <button
-                            onClick={() => handleApproveQuotation(quotation)}
-                            className="p-1 text-green-600 hover:text-green-800 transition-colors"
-                            title="Approve"
+                            {quotation.status.charAt(0).toUpperCase() +
+                              quotation.status.slice(1)}
+                          </span>
+                        </td>
+                        <td className="py-4 px-4">
+                          <div className="flex items-center justify-center space-x-2">
+                            <button
+                              onClick={() => handleViewQuotation(quotation)}
+                              className="p-1 text-blue-600 hover:text-blue-800 transition-colors"
+                              title="View"
+                            >
+                              <Eye className="w-4 h-4" />
+                            </button>
+                            <button
+                              className="p-1 text-gray-600 hover:text-gray-800 transition-colors"
+                              title="Edit"
+                            >
+                              <Edit className="w-4 h-4" />
+                            </button>
+                            {quotation.status === "pending" && (
+                              <button
+                                onClick={() => handleApproveQuotation(quotation)}
+                                className="p-1 text-green-600 hover:text-green-800 transition-colors"
+                                title="Approve"
                               >
                                 <CheckCircle className="w-4 h-4" />
                               </button>
@@ -724,21 +720,20 @@ const VendorQuotation: React.FC = () => {
         <div className="border-b border-gray-200">
           <div className="flex space-x-8 px-6">
             {[
-              { id: "rfq", label: "RFQ Management",name: "RFQ Generation" },
-              { id: "quotation", label: "Vendor Quotation",name: "Vendor Quotation" },
-              { id: "generate-cs", label: "Generate CS",name: "Commercial Comparison" },
-              { id: "approve-cs", label: "Approve CS",name: "Approve Commercial Comparison" },
+              { id: "rfq", label: "RFQ Management", name: "RFQ Generation" },
+              { id: "quotation", label: "Vendor Quotation", name: "Vendor Quotation" },
+              { id: "generate-cs", label: "Commercial Comparison", name: "Commercial Comparison" },
+              { id: "approve-cs", label: "Approve Commercial Comparison", name: "Approve Commercial Comparison" },
             ].filter((item) => hasAccess("Vendor Quotation Management", item.label)).map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`py-4 px-1 border-b-2 font-medium text-sm ${
-                  activeTab === tab.id
-                    ? "border-blue-500 text-blue-600"
-                    : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-                }`}
+                className={`py-4 px-1 border-b-2 font-medium text-sm ${activeTab === tab.id
+                  ? "border-blue-500 text-blue-600"
+                  : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                  }`}
               >
-                {tab.name}
+                {tab.label}
               </button>
             ))}
           </div>
